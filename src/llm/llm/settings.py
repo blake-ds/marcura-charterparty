@@ -33,15 +33,7 @@ class LLMSettings(BaseSettings):
 
     verifier_model: str = Field(
         default="DeepSeek-V4-Flash",
-        description="Primary deployment to call from the verifier.",
-    )
-    verifier_fallback_model: str = Field(
-        default="gpt-5.4-nano",
-        description="Fallback deployment if the primary errors.",
-    )
-    fast_model: str = Field(
-        default="grok-4-1-fast-non-reasoning",
-        description="Optional non-reasoning deployment for cheap follow-ups.",
+        description="Deployment to call from the verifier.",
     )
 
     @property

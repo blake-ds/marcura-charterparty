@@ -67,13 +67,11 @@ LLMs are well-trained on HTML and use tag scaffolding as hierarchy cues; structu
 
 Models live behind the `llm` package and are configured via `.env`:
 
-| Role | Default model | Endpoint |
+| Role | Default deployment | Endpoint |
 |---|---|---|
-| Verifier (primary) | `DeepSeek-V4-Flash` | Azure Foundry |
-| Verifier (fallback) | `gpt-5.4-nano` | Azure OpenAI |
-| Fast non-reasoning | `grok-4-1-fast-non-reasoning` | Azure Foundry |
+| Verifier | `DeepSeek-V4-Flash` | Azure Foundry |
 
-Reasoning effort is per-provider (`MARCURA_AZURE_OPENAI_REASONING_EFFORT`, `MARCURA_AZURE_FOUNDRY_REASONING_EFFORT`). The verifier step is cheap (~10k input tokens for the whole Part II) and skippable via a feature flag.
+Switch deployments by editing `MARCURA_VERIFIER_MODEL` in `.env`; deployments whose names start with `deepseek`, `grok`, `mistral`, `llama`, or `cohere` are routed through Foundry, the rest through Azure OpenAI. Reasoning effort is per-provider (`MARCURA_AZURE_OPENAI_REASONING_EFFORT`, `MARCURA_AZURE_FOUNDRY_REASONING_EFFORT`). The verifier step is cheap (~10k input tokens for the whole Part II) and skippable via a feature flag.
 
 </section>
 <section id="eval">
@@ -82,11 +80,12 @@ Reasoning effort is per-provider (`MARCURA_AZURE_OPENAI_REASONING_EFFORT`, `MARC
 
 Deterministic, no LLM. `make eval` compares parser output against a hand-curated `eval/golden.json` covering ~10 clauses spanning all three sections. Assertions:
 
-1. Clause **count per section** matches expected (44 / 43 / ~22 minus any wholly-struck clauses).
+1. Clause **count per section** matches the expected ordinals exactly (38 / 37 / 21 in this corpus).
 2. **Order is monotonically increasing** within each section.
 3. **Known struck snippets** (e.g. `"Has tanks coated as follows"`) do not appear in any `text`.
 4. **Known surviving snippets** (e.g. the bold replacement of clause 2) do appear.
-5. Titles match exactly for the golden subset.
+5. Titles match exactly for the golden subset, including frozen expectations on regression-prone clauses (`shellvoy-22 Ice` after the title-leakage fix; `essar-22 BILL OF LADING FIGURES` after the split-anchor fix).
+6. **No embedded next-anchor leakage** — the body of clause N must not contain a fragment that looks like clause N+1's anchor.
 
 </section>
 

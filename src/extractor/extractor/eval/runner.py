@@ -56,10 +56,13 @@ def run_eval(pdf_path: Path, golden_path: Path | None = None) -> EvalReport:
     _check_id_format(clauses, golden, report)
     _check_id_uniqueness(clauses, report)
     _check_section_ordering(clauses, report)
+    _check_expected_ordinals(clauses, golden, report)
     _check_first_clause_per_section(clauses, golden, report)
+    _check_specific_clauses(clauses, golden, report)
     _check_struck_absent(clauses, golden, report)
     _check_kept_present(clauses, golden, report)
     _check_titles_non_silly(clauses, report)
+    _check_no_embedded_anchor_leakage(clauses, golden, report)
     return report
 
 
@@ -127,6 +130,47 @@ def _check_section_ordering(clauses: list[Clause], report: EvalReport) -> None:
         "ordinals monotonic per section",
         ok=not failures,
         detail="; ".join(failures),
+    )
+
+
+def _check_expected_ordinals(clauses: list[Clause], golden: dict, report: EvalReport) -> None:
+    """Per-section ordinal lists must match exactly — catches drops + duplicates."""
+    actual: dict[str, list[int]] = {s.value: [] for s in Section}
+    for clause in clauses:
+        actual[clause.section.value].append(clause.ordinal)
+    for section, expected in golden["expected_ordinals_per_section"].items():
+        report.add(
+            f"{section} ordinals exact",
+            ok=actual[section] == expected,
+            detail=f"expected {expected}, got {actual[section]}",
+        )
+
+
+def _check_specific_clauses(clauses: list[Clause], golden: dict, report: EvalReport) -> None:
+    """Frozen expectations on individual clauses — regression tripwires."""
+    by_id = {c.id: c for c in clauses}
+    for clause_id, expected in golden.get("specific_clauses", {}).items():
+        clause = by_id.get(clause_id)
+        if clause is None:
+            report.add(f"{clause_id} present", ok=False, detail="missing from output")
+            continue
+        ok = clause.title == expected["title"] and clause.text.startswith(
+            expected["text_starts_with"]
+        )
+        detail = f"got title={clause.title!r}, text[:60]={clause.text[:60]!r}" if not ok else ""
+        report.add(f"{clause_id} matches expected", ok=ok, detail=detail)
+
+
+def _check_no_embedded_anchor_leakage(
+    clauses: list[Clause], golden: dict, report: EvalReport
+) -> None:
+    """No clause text may contain a fragment of the *next* clause's anchor."""
+    pattern = re.compile(golden["embedded_anchor_pattern_must_not_appear"])
+    leaked = [c.id for c in clauses if pattern.search(c.text)]
+    report.add(
+        "no embedded anchor leakage",
+        ok=not leaked,
+        detail=f"clauses with leaked next-anchor fragments: {leaked}",
     )
 
 

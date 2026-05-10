@@ -101,7 +101,7 @@
   },
   {
     "id": "shellvoy-22",
-    "title": "Over age insurance Ice",
+    "title": "Ice",
     "text": "The vessel shall not be required to force ice or to follow icebreakers. If the master finds that a nominated port is inaccessible due to ice, the master shall immediately notify Charterers requesting revised orders and shall remain outside the ice-bound area; and if after arrival at a nominated port there is danger of the vessel being frozen in, the vessel shall proceed to the nearest safe and ice free position and at the same time request Charterers to give revised orders. In either case if the affected port is (i) the first or only loading port and no cargo has been loaded, Charterers shall either nominate another port, or give notice canceling this charter in which case they shall pay at the demurrage rate in Part I(J) for the time from the master's notification aforesaid or from notice of readiness on arrival, as the case may be, until the time such cancellation notice is given; (ii) a loading port and part of the cargo has been loaded, Charterers shall either nominate another port, or order the vessel to proceed on the voyage without completing loading in which case Charterers shall pay for any deadfreight arising therefrom;\n\n(iii) a discharging port, Charterers shall either nominate another port or order the vessel to proceed to or return to and discharge at the nominated port. If the vessel is ordered to proceed to or return to a nominated port, Charterers shall bear the risk of the vessel being damaged whilst proceeding to or returning to or at such port, and the whole period from the time when the master's request for revised orders is received by Charterers until the vessel can safely depart after completion of discharge shall count against laytime or, if the vessel is on demurrage, for demurrage. If, as a consequence of Charterers revising orders pursuant to this clause, the nominated port(s) or the number or rotation of ports is changed freight, shall nevertheless be paid for the voyage which the vessel would otherwise have performed had the orders not been so revised, such freight to be increased or reduced by the amount by which, as a result of such revision of orders, (a) the time used including any time awaiting revised orders (which shall be valued at the demurrage rate in Part I (J)), (b) The bunkers consumed (which shall be valued at the bunker costs at the port at which bunkers were last taken) and (c) the port charges For the voyage actually performed are greater or less than those that would have been incurred on the voyage which, but for the revised orders under this Clause, the vessel would have performed."
   },
   {
@@ -171,7 +171,7 @@
   },
   {
     "id": "shellvoy-41",
-    "title": "TOVALOP",
+    "title": "",
     "text": "ITOPF Clause Owners warrant that throughout the duration of this Charter the vessel will be: i) owned or demise chartered by a member of the “International Tanker Owners’ Pollution Federation Limited”, and ii) entered in the Protection and Indemnity (P&I) Club stated in Part I (A) 1 (xii) as amended."
   },
   {
@@ -445,6 +445,11 @@
     "text": "Owners confirm vessel is free of encumbrances / accident / pollution claims."
   },
   {
+    "id": "essar-16",
+    "title": "",
+    "text": "All voyage instructions and changes to same to be sent by telex/Fax/E mail only."
+  },
+  {
     "id": "essar-17",
     "title": "If acceptable by Suppliers, otherwise Master to issue Letter of Protest - to be inserted in all original",
     "text": "Bill(s) of Lading issued and presented to Master : 'All terms, conditions, liberties and exceptions of the Charter Party including the Arbitration Clause are herewith incorporated, as per Charter Party dated 03/03/2010."
@@ -467,6 +472,11 @@
   {
     "id": "essar-21",
     "title": "Owners confirm that all officers on board hold ocean going vessel certificate of competency. Also",
-    "text": "confirm that for the forthcoming voyage, vessel neither comes ex dry-dock nor tank washing held prior loading. 22 .BILL OF LADING FIGURES In case only net b(s)/l figures printed on the b(s)/l freight to be paid basis calculated gross b(s)/l figures, as calculated by charterers surveyor."
+    "text": "confirm that for the forthcoming voyage, vessel neither comes ex dry-dock nor tank washing held prior loading."
+  },
+  {
+    "id": "essar-22",
+    "title": "BILL OF LADING FIGURES",
+    "text": "In case only net b(s)/l figures printed on the b(s)/l freight to be paid basis calculated gross b(s)/l figures, as calculated by charterers surveyor."
   }
 ]
