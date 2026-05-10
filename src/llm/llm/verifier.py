@@ -48,6 +48,14 @@ Look for:
 5. Bodies that look suspiciously short for a real clause
    (1–2 sentences may be fine; 1–2 words probably isn't).
 
+Important exceptions:
+- Some clauses in the source have no separate heading. An empty title is fine if
+  the text itself is a complete clause.
+- A heading-only clause is fine when the heading says the clause is not
+  applicable.
+- Strike-through deletion may leave a visible trailing comma or colon. Do not
+  flag punctuation alone unless there is evidence of merged or missing text.
+
 Skip clauses that look fine. The deterministic extractor is already good — most
 runs should yield zero or only a handful of anomalies.
 """

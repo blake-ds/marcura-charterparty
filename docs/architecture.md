@@ -18,9 +18,9 @@ flowchart LR
     D --> E[Section detector<br/>SHELLVOY / Additional / Essar]
     E --> F[Per-section parser<br/>2-col vs inline-title]
     F --> G[Clause candidates<br/>section,id,title,text]
-    G --> H{LLM verifier<br/>Azure}
-    H -->|ok| I[output/clauses.json]
-    H -->|repair| F
+    G --> I[output/clauses.json]
+    G -. optional QA .-> H{LLM verifier<br/>Azure}
+    H -. log warnings .-> K[stderr / logs]
     I --> J[output/clauses.html<br/>browseable view]
 ```
 
@@ -35,10 +35,10 @@ flowchart LR
 
 The source PDF encodes strike-through as **thin filled rectangles** (`re` operators, height ≈ 0.42pt) drawn over text — not as PDF annotations and not as a font flag. PyMuPDF's `page.get_drawings()` exposes them; a glyph is "struck" when a strike rect's bbox covers its centre point.
 
-Char-level marking is the primary filter, but a strike rectangle that ends mid-word leaves orphan glyphs visible (an `indemnity` line covered up to x=180 leaves "demnity" rendered, leaking into the JSON). Two cleanup passes follow in `pdf.line_vote_filter`:
+Char-level marking is the primary filter, but a strike rectangle that ends mid-word leaves orphan glyphs visible (an `indemnity` line covered up to x=180 leaves "demnity" rendered, leaking into the JSON). The two-column SHELLVOY parser uses `pdf.line_vote_filter`; the inline rider parser uses a stricter boundary-aware filter because whole struck clauses still need to delimit neighboring clauses.
 
-- **Whole-line vote.** If more than 70% of a line's printable glyphs are struck, the entire line is dropped — kills orphan remnants of fully-replaced lines.
-- **Word-level promotion.** On the surviving lines, a word that has *any* struck glyph is treated as fully struck. This catches the indemnity → "demnity" / company → "y" pattern where a strike ends mid-word.
+- **Whole-line vote.** If more than 50% of a line's printable glyphs are struck, the entire line is dropped — kills orphan remnants of fully-replaced lines.
+- **Inline body guard.** In rider sections, a line is dropped when it is fully struck, when its leading printable glyph is struck and the remaining visible text starts like a word, or when it is a clean-looking continuation sandwiched inside a struck block. Mixed amendment lines keep their visible replacement text.
 
 </section>
 <section id="sections">
@@ -60,7 +60,7 @@ So `id="1"` appears **three times** in Part II. The output schema disambiguates 
 
 ### LLM verifier (Azure)
 
-The verifier receives the deterministic clause candidates as **HTML-tagged structured input** (`<clause id=...><title>...</title><text>...</text></clause>`). It does not regenerate text — it flags suspicious boundaries (truncated, merged, out-of-order) and may suggest a one-line repair.
+The verifier receives the deterministic clause candidates as **HTML-tagged structured input** (`<clause id=...><title>...</title><text>...</text></clause>`). It does not regenerate text — it logs suspicious boundaries (truncated, merged, out-of-order) for manual review.
 
 <details>
 <summary>Why HTML-tagged input?</summary>
@@ -81,9 +81,9 @@ Switch deployments by editing `MARCURA_VERIFIER_MODEL` in `.env`; deployments wh
 
 ### Evaluation
 
-Deterministic, no LLM. `make eval` compares parser output against a hand-curated `eval/golden.json` covering ~10 clauses spanning all three sections. Assertions:
+Deterministic, no LLM. `make eval` compares parser output against a hand-curated packaged golden file covering counts, exact ordinal lists, key clauses, and known strike-through traps. Assertions:
 
-1. Clause **count per section** matches the expected ordinals exactly (38 / 29 / 21 in this corpus, after dropping fragment-only artefacts of fully-struck clauses).
+1. Clause **count per section** matches the expected ordinals exactly (38 / 28 / 21 in this corpus, after dropping fragment-only artefacts of fully-struck clauses).
 2. **Order is monotonically increasing** within each section.
 3. **Known struck snippets** (e.g. `"Has tanks coated as follows"`) do not appear in any `text`.
 4. **Known surviving snippets** (e.g. the bold replacement of clause 2) do appear.
@@ -95,4 +95,4 @@ Deterministic, no LLM. `make eval` compares parser output against a hand-curated
 ## Output
 
 - `output/clauses.json` — the deliverable per the task spec. Schema: `[ {id, title, text}, ... ]`, preserving document order.
-- `output/clauses.html` — the same data rendered as a browseable view (Jinja2 → static HTML). Same dual-format pattern as the docs.
+- `output/clauses.html` — the same data rendered as a browseable, self-contained static HTML view.

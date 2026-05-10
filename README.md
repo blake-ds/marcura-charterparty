@@ -18,7 +18,7 @@ The deliverable is [`output/clauses.json`](output/clauses.json). A browseable [`
 
 ## Approach in one paragraph
 
-A deterministic PyMuPDF parser does the heavy lifting: it walks each page character-by-character with bounding boxes, intersects them with the thin rectangles that encode strike-through, splits Part II into its three numbering ranges (SHELLVOY 5 / Shell Additional Clauses / Essar Rider Clauses), and assembles `(id, title, text)` candidates whose every word can be traced back to a glyph on the source page. An optional Azure-hosted LLM verifier reviews the candidates as HTML-tagged structured input, flags suspicious boundaries, and proposes one-line repairs — but never rewrites text. See [`docs/architecture.md`](docs/architecture.md) for the full pipeline.
+A deterministic PyMuPDF parser does the heavy lifting: it walks each page character-by-character with bounding boxes, intersects them with the thin rectangles that encode strike-through, splits Part II into its three numbering ranges (SHELLVOY 5 / Shell Additional Clauses / Essar Rider Clauses), and assembles `(id, title, text)` candidates whose every word can be traced back to a glyph on the source page. An optional Azure-hosted LLM verifier reviews the candidates as HTML-tagged structured input and logs suspicious boundaries — but never rewrites text. See [`docs/architecture.md`](docs/architecture.md) for the full pipeline.
 
 ## Documentation
 

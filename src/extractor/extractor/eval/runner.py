@@ -2,7 +2,7 @@
 
 Each check is a small, named, side-effect-free assertion. Results aggregate
 into an :class:`EvalReport` that prints a short summary and exits non-zero on
-the first failure — exactly what CI needs.
+any failure — exactly what CI needs.
 """
 
 from __future__ import annotations
@@ -60,6 +60,7 @@ def run_eval(pdf_path: Path, golden_path: Path | None = None) -> EvalReport:
     _check_first_clause_per_section(clauses, golden, report)
     _check_specific_clauses(clauses, golden, report)
     _check_struck_absent(clauses, golden, report)
+    _check_fragments_absent(clauses, golden, report)
     _check_kept_present(clauses, golden, report)
     _check_titles_non_silly(clauses, report)
     _check_no_embedded_anchor_leakage(clauses, golden, report)
@@ -158,6 +159,8 @@ def _check_specific_clauses(clauses: list[Clause], golden: dict, report: EvalRep
         ok = clause.title == expected["title"] and clause.text.startswith(
             expected["text_starts_with"]
         )
+        if "text_exact" in expected:
+            ok = ok and clause.text == expected["text_exact"]
         detail = f"got title={clause.title!r}, text[:60]={clause.text[:60]!r}" if not ok else ""
         report.add(f"{clause_id} matches expected", ok=ok, detail=detail)
 
@@ -200,12 +203,39 @@ def _check_first_clause_per_section(
 
 
 def _check_struck_absent(clauses: list[Clause], golden: dict, report: EvalReport) -> None:
+    _check_snippets_absent(
+        clauses,
+        snippets=golden["struck_must_be_absent"],
+        name="struck snippets absent",
+        detail_label="leaked snippets",
+        report=report,
+    )
+
+
+def _check_fragments_absent(clauses: list[Clause], golden: dict, report: EvalReport) -> None:
+    _check_snippets_absent(
+        clauses,
+        snippets=golden["fragment_must_be_absent"],
+        name="strike fragments absent",
+        detail_label="leaked fragments",
+        report=report,
+    )
+
+
+def _check_snippets_absent(
+    clauses: list[Clause],
+    *,
+    snippets: list[str],
+    name: str,
+    detail_label: str,
+    report: EvalReport,
+) -> None:
     all_text = " ".join(c.text for c in clauses)
-    leaked = [snippet for snippet in golden["struck_must_be_absent"] if snippet in all_text]
+    leaked = [snippet for snippet in snippets if snippet in all_text]
     report.add(
-        "struck snippets absent",
+        name,
         ok=not leaked,
-        detail=f"leaked snippets: {leaked}",
+        detail=f"{detail_label}: {leaked}",
     )
 
 

@@ -55,6 +55,6 @@ Maritime law and PDF-parsing terms used throughout the docs and code. Markdown h
 <dd>An Azure / OpenAI model parameter that trades latency and cost for thinking depth. GPT-5.4 accepts <code>minimal | low | medium | high | xhigh</code>; Grok 4.1 accepts <code>low | medium | high</code>; DeepSeek-V4-Flash defaults to <code>medium</code>.</dd>
 
 <dt>Verifier</dt>
-<dd>The LLM step in our pipeline. It is <em>not</em> the source of clause text — it only flags suspicious deterministic output and proposes one-line repairs. The split keeps every word in the JSON traceable to a word on the page.</dd>
+<dd>The LLM step in our pipeline. It is <em>not</em> the source of clause text — it only flags suspicious deterministic output for manual review. The split keeps every word in the JSON traceable to a word on the page.</dd>
 
 </dl>

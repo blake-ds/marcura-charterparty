@@ -103,7 +103,7 @@ def load_pages(pdf_path: Path) -> tuple[Page, ...]:
         doc.close()
 
 
-_LINE_VOTE_STRIKE_RATIO = 0.7
+_LINE_VOTE_STRIKE_RATIO = 0.5
 
 
 def line_vote_filter(chars: Iterable[Char]) -> list[Char]:

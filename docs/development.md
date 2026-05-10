@@ -40,7 +40,8 @@ cp .env.example .env         # then fill in Azure endpoints/keys
 │   └── llm/                 # Azure clients + verifier
 ├── docs/                    # markdown source-of-truth (this folder)
 ├── output/                  # the deliverable: clauses.json + clauses.html
-├── eval/                    # golden file + assertions (no LLM)
+├── src/extractor/extractor/eval/
+│                             # golden file + assertions (no LLM)
 ├── .github/workflows/       # CI (ruff, ty, gitleaks, pytest)
 ├── CLAUDE.md  AGENTS.md  .cursorrules    # parity working-agreement
 ├── pyproject.toml           # workspace root + ruff/pytest/ty config

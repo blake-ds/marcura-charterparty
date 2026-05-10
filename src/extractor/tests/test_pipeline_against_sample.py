@@ -25,14 +25,14 @@ def clauses():
 
 
 def test_total_count(clauses) -> None:
-    assert len(clauses) == 88
+    assert len(clauses) == 87
 
 
 def test_section_counts(clauses) -> None:
     counts = {s.value: 0 for s in Section}
     for c in clauses:
         counts[c.section.value] += 1
-    assert counts == {"shellvoy": 38, "additional": 29, "essar": 21}
+    assert counts == {"shellvoy": 38, "additional": 28, "essar": 21}
 
 
 def test_ids_unique_and_prefixed(clauses) -> None:
@@ -106,3 +106,46 @@ def test_essar_16_single_line_clause_kept(clauses) -> None:
     e16 = next((c for c in clauses if c.id == "essar-16"), None)
     assert e16 is not None
     assert "voyage instructions" in e16.text
+
+
+def test_strike_fragments_do_not_leak_from_additional_clauses(clauses) -> None:
+    all_text = " ".join(c.text for c in clauses)
+    forbidden = (
+        "that vessel will not exceed a maximum freeboard",
+        "Freight payment Clause 5",
+        "operations in Sydney during the hours of darkness",
+        "Legal proceedings have been commenced against Owners",
+    )
+    assert [fragment for fragment in forbidden if fragment in all_text] == []
+
+
+def test_partial_strike_visible_replacements_are_kept(clauses) -> None:
+    a3 = next(c for c in clauses if c.id == "additional-3")
+    a6 = next(c for c in clauses if c.id == "additional-6")
+    assert "for the duration of this Charter." in a3.text
+    assert "Worldscale charges / dues;" in a6.text
+    assert ", , Worldscale" not in a6.text
+
+
+def test_essar_11_keeps_acronym_title(clauses) -> None:
+    e11 = next(c for c in clauses if c.id == "essar-11")
+    assert e11.title == "I.S.M. CLAUSE"
+    assert e11.text.startswith("From the date of coming into force")
+
+
+def test_essar_18_heading_only_clause_kept(clauses) -> None:
+    e18 = next(c for c in clauses if c.id == "essar-18")
+    assert e18.title == "CLINGAGE – NOT APPLICABLE FOR THIS CHARTER"
+    assert e18.text == ""
+
+
+def test_essar_21_keeps_lowercase_continuation(clauses) -> None:
+    e21 = next(c for c in clauses if c.id == "essar-21")
+    assert "forthcoming voyage" in e21.text
+    assert e21.text.endswith("tank washing held prior loading.")
+
+
+def test_shellvoy_13_partial_strike_fragment_removed(clauses) -> None:
+    c13 = next(c for c in clauses if c.id == "shellvoy-13")
+    assert "disconnecting of hoses to Recommence" not in c13.text
+    assert "Recommence two hours after disconnection" in c13.text

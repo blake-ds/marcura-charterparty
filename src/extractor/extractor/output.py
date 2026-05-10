@@ -67,13 +67,14 @@ def _render_html(clauses: list[Clause]) -> str:
 
 
 def _render_clause(clause: Clause) -> str:
-    paragraphs = [p for p in clause.text.split("\n\n") if p.strip()]
+    paragraphs = [p.strip() for p in clause.text.split("\n\n") if p.strip()]
     body = "\n  ".join(f"<p>{html.escape(p)}</p>" for p in paragraphs)
+    body_html = f"  {body}\n" if body else ""
     return (
         f'<article id="{html.escape(clause.id)}">\n'
         f'  <header><span class="id">{html.escape(clause.id)}</span>'
         f"<h3>{html.escape(clause.title) or '<em>(untitled)</em>'}</h3></header>\n"
-        f"  {body}\n"
+        f"{body_html}"
         f"</article>"
     )
 
