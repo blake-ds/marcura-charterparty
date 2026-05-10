@@ -1,0 +1,42 @@
+{
+  "expected_counts": {
+    "shellvoy": 38,
+    "additional": 37,
+    "essar": 19
+  },
+  "expected_total": 94,
+  "id_format_regex": "^(shellvoy|additional|essar)-[1-9][0-9]?$",
+  "first_clause_per_section": {
+    "shellvoy": {
+      "id": "shellvoy-1",
+      "title": "Condition Of vessel",
+      "text_starts_with": "Owners shall exercise due diligence to ensure that",
+      "text_ends_with": "accept 29 February 2000 as a valid date."
+    },
+    "additional": {
+      "id": "additional-1",
+      "title": "Indemnity Clause",
+      "text_starts_with": "If Charterers by telex"
+    },
+    "essar": {
+      "id": "essar-1",
+      "title": "INTERNATIONAL REGULATIONS CLAUSE",
+      "text_starts_with": "Vessel to comply with all national and international regulations"
+    }
+  },
+  "struck_must_be_absent": [
+    "Has tanks coated as follows",
+    "or if such loss or damage was caused by an act of war",
+    "and any taxes on freight whatsoever",
+    "5% more or less in Owners' option",
+    "Has cargo pumps capable of discharging a full cargo",
+    "use due diligence to keep the tanks, lines and pumps of the vessel clean"
+  ],
+  "kept_must_be_present": [
+    "keep the tanks, lines and pumps of the vessel always clean for the cargo",
+    "recognize the year 2000 as a leap year",
+    "NO FREIGHT FAX ON OWNERS ACCOUNT",
+    "INTERNATIONAL REGULATIONS CLAUSE",
+    "Vessel to comply with all national and international regulations"
+  ]
+}

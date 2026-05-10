@@ -1,39 +1,35 @@
-# AI Engineer Challenge: Charter Party Document Parser
+# Charter Party Document Parser
 
-## Overview
+Marcura AI Engineer challenge — extract legal clauses from a 39-page voyage charter party PDF into structured JSON, with strike-through edits filtered out.
 
-Your task is to build a Python application that parses a maritime charter party document (PDF) and extracts legal clauses in a structured format using LLM capabilities.
+The original assignment is preserved verbatim at [`docs/task.md`](docs/task.md).
 
-## Document
+## Quick start
 
-**Source:** https://shippingforum.wordpress.com/wp-content/uploads/2012/09/voyage-charter-example.pdf
+```bash
+make install            # uv sync + install pre-commit hook
+cp .env.example .env    # only needed for `make run_verify` (Azure LLM)
+make run                # extract → output/clauses.json + output/clauses.html
+make eval               # deterministic correctness check vs golden file
+make test               # unit tests
+```
 
-This is a voyage charter party agreement – a standard maritime contract used in shipping. The document contains:
-- **Part I**: Particulars/Details (skip this section)
-- **Part II**: Legal clauses with numbered provisions (**Pages 6–39**)
+The deliverable is [`output/clauses.json`](output/clauses.json). A browseable [`output/clauses.html`](output/clauses.html) view is also produced. Open [`docs/site/index.html`](docs/site/index.html) for the architecture write-up.
 
-## Requirements
+## Approach in one paragraph
 
-1. **Extract legal clauses from Part II** of the document (**Pages 6–39**)
-2. **For each clause, extract:**
-   - `id`: The clause identifier (e.g., "1", "2", "3", etc.)
-   - `title`: The clause title/heading
-   - `text`: The full clause text content
+A deterministic PyMuPDF parser does the heavy lifting: it walks each page character-by-character with bounding boxes, intersects them with the thin rectangles that encode strike-through, splits Part II into its three numbering ranges (SHELLVOY 5 / Shell Additional Clauses / Essar Rider Clauses), and assembles `(id, title, text)` candidates whose every word can be traced back to a glyph on the source page. An optional Azure-hosted LLM verifier reviews the candidates as HTML-tagged structured input, flags suspicious boundaries, and proposes one-line repairs — but never rewrites text. See [`docs/architecture.md`](docs/architecture.md) for the full pipeline.
 
-3. **Output the extracted clauses** in a structured JSON format. 
-4. Do not include strike-thru text.
-5. Clauses should be returned in the order they appear in the document.
+## Documentation
 
-**DO include the output json in the final submission**
+The `docs/` folder is the project's source of truth.
 
-### Technical Requirements
+- [`docs/README.md`](docs/README.md) — index and dual-format philosophy
+- [`docs/architecture.md`](docs/architecture.md) — pipeline, sections, LLM role, eval
+- [`docs/glossary.md`](docs/glossary.md) — maritime + technical terms
+- [`docs/development.md`](docs/development.md) — setup, commands, CI
+- [`docs/site/index.html`](docs/site/index.html) — hand-crafted single-file showcase
 
-1. You can use any LLM of your choice.
-2. Focus on code quality. It should show your python skills!
-3. We should be able to run your code locally.
+## Working agreement
 
-**DO NOT include your API key in the submission!**
-
-PS. Please publish the solution to your GitHub and invite us to review it.
-
-Any questions shoot and good luck!
+Coding conventions for any contributor (human or AI) live in three parity files: [`CLAUDE.md`](CLAUDE.md) (Claude Code), [`AGENTS.md`](AGENTS.md) (Codex), [`.cursorrules`](.cursorrules) (Antigravity, Cursor).
