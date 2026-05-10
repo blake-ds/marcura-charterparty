@@ -63,6 +63,7 @@ def run_eval(pdf_path: Path, golden_path: Path | None = None) -> EvalReport:
     _check_kept_present(clauses, golden, report)
     _check_titles_non_silly(clauses, report)
     _check_no_embedded_anchor_leakage(clauses, golden, report)
+    _check_text_starts_clean(clauses, report)
     return report
 
 
@@ -215,6 +216,22 @@ def _check_kept_present(clauses: list[Clause], golden: dict, report: EvalReport)
         "kept snippets present",
         ok=not missing,
         detail=f"missing snippets: {missing}",
+    )
+
+
+def _check_text_starts_clean(clauses: list[Clause], report: EvalReport) -> None:
+    """A clause's text must start with a plausible sentence opener.
+
+    Mid-word fragments left over from partial strike rectangles look like
+    text that begins with a lowercase letter. Real clauses begin with
+    upper-case words, parenthesised sub-points, digits, or quotes.
+    """
+    pattern = re.compile(r'^[A-Z0-9("“‘]')
+    bad = [c.id for c in clauses if c.text and not pattern.match(c.text)]
+    report.add(
+        "text starts with sentence opener",
+        ok=not bad,
+        detail=f"clauses starting with a non-opener char: {bad}",
     )
 
 

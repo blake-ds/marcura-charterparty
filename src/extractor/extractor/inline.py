@@ -25,7 +25,7 @@ from collections.abc import Iterable
 from pydantic import BaseModel, ConfigDict
 
 from extractor.models import Clause, Section
-from extractor.pdf import Char, Page, Word
+from extractor.pdf import Char, Page, Word, line_vote_filter
 from extractor.text import chars_to_text
 
 _NUMBER_RE = re.compile(r"^(\d{1,3})\.?$")
@@ -115,55 +115,94 @@ def _group_words_by_line(words: Iterable[Word]) -> list[tuple[float, list[Word]]
     return sorted(buckets.items())
 
 
+_SENTENCE_OPENER_RE = re.compile(r'^[A-Z0-9("“‘]')
+_MEANINGFUL_TITLE_RE = re.compile(r"[A-Za-z]{2,}")
+
+
 def _build_clause(
     pages: tuple[Page, ...],
     anchor: _Anchor,
     next_anchor: _Anchor | None,
     section: Section,
 ) -> Clause | None:
+    """Materialize a clause, classifying the anchor's inline content.
+
+    Three cases differ by the *shape* of the anchor's title and whether body
+    text exists below it:
+
+    * **Heading + body** — ``anchor.title`` looks like a clause heading
+      (short, no mid-string period) and body lines follow. Standard case.
+    * **Single-line clause** — the inline anchor content *is* the clause
+      (essar-16 "All voyage instructions … by telex/Fax/E mail only."). We
+      promote it into ``text`` and leave ``title`` empty.
+    * **Sentence continuation** — the anchor line and body lines together
+      form one wrapped sentence (essar-21). The title text contains a
+      mid-string period; we concatenate it with the body and drop the
+      separate-title slot.
+
+    Body text that begins with a lowercase letter is treated as residue from
+    a fully-struck clause and discarded — it is, in legal-document terms,
+    not a clause but the tail end of one that was crossed out.
+    """
     end_page = pages[-1].number if next_anchor is None else next_anchor.page
     end_y = float("inf") if next_anchor is None else next_anchor.y
 
     body_chars = list(_collect_body_chars(pages, anchor, end_page, end_y))
-    text = chars_to_text(body_chars)
+    body_text = chars_to_text(body_chars)
+    if body_text and not _SENTENCE_OPENER_RE.match(body_text):
+        body_text = ""  # mid-word fragment leaked from struck text
 
-    if not text:
-        # Single-line clause: the anchor line itself is the entire clause.
-        if anchor.title:
-            return Clause(
-                section=section,
-                ordinal=anchor.ordinal,
-                title="",
-                text=anchor.title,
-                page_start=anchor.page,
-                page_end=anchor.page,
-            )
-        return None
+    title = anchor.title if _MEANINGFUL_TITLE_RE.search(anchor.title) else ""
+    page_end = max(anchor.page, end_page) if body_text else anchor.page
+
+    if not body_text:
+        if not title:
+            return None
+        return Clause(
+            section=section,
+            ordinal=anchor.ordinal,
+            title="",
+            text=title,
+            page_start=anchor.page,
+            page_end=anchor.page,
+        )
+
+    if title and "." in title.rstrip("."):
+        # Mid-string period — the "title" is the first sentence of the body.
+        return Clause(
+            section=section,
+            ordinal=anchor.ordinal,
+            title="",
+            text=f"{title} {body_text}",
+            page_start=anchor.page,
+            page_end=page_end,
+        )
 
     return Clause(
         section=section,
         ordinal=anchor.ordinal,
-        title=anchor.title,
-        text=text,
+        title=title,
+        text=body_text,
         page_start=anchor.page,
-        page_end=max(anchor.page, end_page),
+        page_end=page_end,
     )
 
 
 def _collect_body_chars(
     pages: tuple[Page, ...], anchor: _Anchor, end_page: int, end_y: float
 ) -> list[Char]:
-    chars: list[Char] = []
+    """All body glyphs (struck + visible) in the clause's y-range; line-vote filtered."""
+    candidates: list[Char] = []
     for page in pages:
         if page.number < anchor.page or page.number > end_page:
             continue
-        for char in page.visible_chars():
+        for char in page.chars:
             if not (_BODY_X_MIN < char.x_mid < _BODY_X_MAX):
                 continue
             if not _within_clause_range(char, anchor, end_page, end_y):
                 continue
-            chars.append(char)
-    return chars
+            candidates.append(char)
+    return line_vote_filter(candidates)
 
 
 def _within_clause_range(char: Char, anchor: _Anchor, end_page: int, end_y: float) -> bool:

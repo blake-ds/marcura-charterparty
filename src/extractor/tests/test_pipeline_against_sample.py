@@ -25,14 +25,14 @@ def clauses():
 
 
 def test_total_count(clauses) -> None:
-    assert len(clauses) == 96
+    assert len(clauses) == 88
 
 
 def test_section_counts(clauses) -> None:
     counts = {s.value: 0 for s in Section}
     for c in clauses:
         counts[c.section.value] += 1
-    assert counts == {"shellvoy": 38, "additional": 37, "essar": 21}
+    assert counts == {"shellvoy": 38, "additional": 29, "essar": 21}
 
 
 def test_ids_unique_and_prefixed(clauses) -> None:

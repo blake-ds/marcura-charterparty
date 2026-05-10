@@ -33,9 +33,12 @@ flowchart LR
 
 ### Strike-through removal
 
-The source PDF encodes strike-through as **thin filled rectangles** (`re` operators, height ≈ 0.42pt) drawn over text — not as PDF annotations and not as a font flag. PyMuPDF's `page.get_drawings()` exposes them; a word is "struck" when a strike rect overlaps its bbox vertically (within the bbox's y-range) and horizontally.
+The source PDF encodes strike-through as **thin filled rectangles** (`re` operators, height ≈ 0.42pt) drawn over text — not as PDF annotations and not as a font flag. PyMuPDF's `page.get_drawings()` exposes them; a glyph is "struck" when a strike rect's bbox covers its centre point.
 
-Confirmed empirically: 11 strike rectangles on the *Cleanliness of tanks* page identified all 125 struck words. Word-level filtering is sufficient — every observed strike rect spans full words.
+Char-level marking is the primary filter, but a strike rectangle that ends mid-word leaves orphan glyphs visible (an `indemnity` line covered up to x=180 leaves "demnity" rendered, leaking into the JSON). Two cleanup passes follow in `pdf.line_vote_filter`:
+
+- **Whole-line vote.** If more than 70% of a line's printable glyphs are struck, the entire line is dropped — kills orphan remnants of fully-replaced lines.
+- **Word-level promotion.** On the surviving lines, a word that has *any* struck glyph is treated as fully struck. This catches the indemnity → "demnity" / company → "y" pattern where a strike ends mid-word.
 
 </section>
 <section id="sections">
@@ -80,7 +83,7 @@ Switch deployments by editing `MARCURA_VERIFIER_MODEL` in `.env`; deployments wh
 
 Deterministic, no LLM. `make eval` compares parser output against a hand-curated `eval/golden.json` covering ~10 clauses spanning all three sections. Assertions:
 
-1. Clause **count per section** matches the expected ordinals exactly (38 / 37 / 21 in this corpus).
+1. Clause **count per section** matches the expected ordinals exactly (38 / 29 / 21 in this corpus, after dropping fragment-only artefacts of fully-struck clauses).
 2. **Order is monotonically increasing** within each section.
 3. **Known struck snippets** (e.g. `"Has tanks coated as follows"`) do not appear in any `text`.
 4. **Known surviving snippets** (e.g. the bold replacement of clause 2) do appear.

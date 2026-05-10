@@ -13,7 +13,7 @@ from collections.abc import Iterable
 from pathlib import Path
 
 import pymupdf
-from pydantic import BaseModel, ConfigDict, computed_field
+from pydantic import BaseModel, ConfigDict
 
 # Empirical thresholds derived from the SHELLVOY 5 sample. The strike rectangles
 # in this corpus are ≈0.42pt tall and span the full strike line; anything taller
@@ -39,12 +39,10 @@ class Char(_Frozen):
     page: int  # 1-indexed
     struck: bool
 
-    @computed_field
     @property
     def x_mid(self) -> float:
         return (self.x0 + self.x1) / 2
 
-    @computed_field
     @property
     def y_mid(self) -> float:
         return (self.y0 + self.y1) / 2
@@ -70,12 +68,10 @@ class Word(_Frozen):
     page: int
     struck: bool
 
-    @computed_field
     @property
     def x_mid(self) -> float:
         return (self.x0 + self.x1) / 2
 
-    @computed_field
     @property
     def y_mid(self) -> float:
         return (self.y0 + self.y1) / 2
@@ -105,6 +101,61 @@ def load_pages(pdf_path: Path) -> tuple[Page, ...]:
         return tuple(_load_page(doc[i], page_number=i + 1) for i in range(doc.page_count))
     finally:
         doc.close()
+
+
+_LINE_VOTE_STRIKE_RATIO = 0.7
+
+
+def line_vote_filter(chars: Iterable[Char]) -> list[Char]:
+    """Drop fragments left over from partial strike rectangles.
+
+    Two cleanup passes operate on every glyph (struck + visible) for a candidate
+    body region:
+
+    1. **Whole-line vote.** If more than :data:`_LINE_VOTE_STRIKE_RATIO` of a
+       line's printable glyphs are struck, discard the line — kills orphan
+       remnants of fully-replaced lines.
+    2. **Word-level promotion.** On the surviving lines, a word that has *any*
+       struck glyph in it is treated as fully struck. This catches the
+       indemnity → "demnity" / company → "y" pattern where a strike rectangle
+       ends mid-word and the trailing chars would otherwise leak through.
+
+    Whitespace glyphs are emitted only if visible — that preserves spacing
+    between kept words while not dragging in struck spaces.
+    """
+    by_line: dict[tuple[int, int], list[Char]] = {}
+    for char in chars:
+        by_line.setdefault((char.page, round(char.y_mid)), []).append(char)
+
+    kept: list[Char] = []
+    for line_chars in by_line.values():
+        printable = [c for c in line_chars if c.text.strip()]
+        if printable:
+            struck_ratio = sum(1 for c in printable if c.struck) / len(printable)
+            if struck_ratio > _LINE_VOTE_STRIKE_RATIO:
+                continue
+        kept.extend(_keep_clean_words(line_chars))
+    return kept
+
+
+def _keep_clean_words(line_chars: list[Char]) -> list[Char]:
+    """Return only fully-visible words on a line (drop partial-strike fragments)."""
+    line_chars = sorted(line_chars, key=lambda c: c.x0)
+    out: list[Char] = []
+    word_buffer: list[Char] = []
+    for char in line_chars:
+        if not char.text.strip():
+            if word_buffer:
+                if not any(c.struck for c in word_buffer):
+                    out.extend(word_buffer)
+                word_buffer = []
+            if not char.struck:
+                out.append(char)
+            continue
+        word_buffer.append(char)
+    if word_buffer and not any(c.struck for c in word_buffer):
+        out.extend(word_buffer)
+    return out
 
 
 def _load_page(mu_page: pymupdf.Page, *, page_number: int) -> Page:

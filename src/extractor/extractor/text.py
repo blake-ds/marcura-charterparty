@@ -45,7 +45,9 @@ def chars_to_text(chars: Iterable[Char]) -> str:
 
     text = "".join(parts)
     text = re.sub(r"[ \t]+", " ", text)
-    text = re.sub(r" *\n\n *", "\n\n", text)
+    # Collapse any run of blank lines (≥2 consecutive newlines, with surrounding
+    # whitespace) into the canonical paragraph break.
+    text = re.sub(r"(\s*\n){2,}\s*", "\n\n", text)
     return text.strip()
 
 

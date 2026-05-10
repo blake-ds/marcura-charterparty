@@ -33,7 +33,7 @@ import re
 from pydantic import BaseModel, ConfigDict
 
 from extractor.models import Clause, Section
-from extractor.pdf import Char, Page, Word
+from extractor.pdf import Char, Page, Word, line_vote_filter
 from extractor.text import chars_to_text
 
 _CLAUSE_NUMBER_RE = re.compile(r"^(\d{1,2})\.$")
@@ -51,8 +51,10 @@ _CLAUSE_NUMBER_X_MAX = 145.0
 # Within-title intra-line gaps are ≈10–12pt; anything bigger is a title boundary.
 _MULTILINE_TITLE_GAP = 14.0
 # An above-anchor orphan block is a candidate title only if it ends within this
-# many points of the anchor row. Bigger gaps are pages of struck body.
-_ORPHAN_LOOKBACK_MAX = 100.0
+# many points of the anchor row. Set wide enough to span a fully-struck clause
+# (e.g. SHELLVOY clause 41 *TOVALOP*: title sits ~410pt above the replacement
+# anchor) but not so wide that orphans from earlier-page clauses cross.
+_ORPHAN_LOOKBACK_MAX = 500.0
 
 
 class _Anchor(BaseModel):
@@ -178,7 +180,13 @@ def _orphan_attach(
     claimed: set[int],
     titles: list[str],
 ) -> None:
-    """Offer every still-unclaimed contiguous block to the next title-less anchor."""
+    """Attach unclaimed left-margin blocks to title-less anchors — closest first.
+
+    Closest-wins matters when multiple orphan blocks lie above one title-less
+    anchor: the page header *Issued July 1987* sits 250pt above the
+    Cleanliness anchor and the real title *Cleanliness Of tanks* sits 62pt
+    above. The closer block is the one we want.
+    """
     blocks: list[list[int]] = []
     current: list[int] = []
     last_y: float | None = None
@@ -197,23 +205,23 @@ def _orphan_attach(
     if current:
         blocks.append(current)
 
-    for block in blocks:
-        block_y_end = page_lines[block[-1]].y
-        # Find the next title-less anchor whose anchor.y is below the block end.
-        candidate = next(
-            (
-                (idx, anchor)
-                for idx, anchor in page_anchors
-                if anchor.y > block_y_end and not titles[idx]
-            ),
-            None,
-        )
-        if candidate is None:
+    used: set[int] = set()
+    for idx, anchor in page_anchors:
+        if titles[idx]:
             continue
-        idx, anchor = candidate
-        if anchor.y - block_y_end > _ORPHAN_LOOKBACK_MAX:
+        candidates = [
+            (block_index, block)
+            for block_index, block in enumerate(blocks)
+            if block_index not in used and page_lines[block[-1]].y < anchor.y
+        ]
+        if not candidates:
+            continue
+        # Pick the block whose end-y is closest below the anchor.
+        block_index, block = max(candidates, key=lambda pair: page_lines[pair[1][-1]].y)
+        if anchor.y - page_lines[block[-1]].y > _ORPHAN_LOOKBACK_MAX:
             continue
         titles[idx] = " ".join(page_lines[i].text for i in block)
+        used.add(block_index)
 
 
 def _build_clause(
@@ -243,19 +251,25 @@ def _build_clause(
 def _collect_body_chars(
     pages: tuple[Page, ...], anchor: _Anchor, end_page: int, end_y: float
 ) -> list[Char]:
-    chars: list[Char] = []
+    """All body glyphs (struck + visible) in the clause's y-range.
+
+    Returns the full glyph stream — :func:`line_vote_filter` will then drop
+    any line that is mostly struck, which cleans up partial-strike artefacts
+    where an orphan glyph or two survived a wide rectangle.
+    """
+    candidates: list[Char] = []
     for page in pages:
         if page.number < anchor.page or page.number > end_page:
             continue
-        for char in page.visible_chars():
+        for char in page.chars:
             if not (_BODY_COLUMN_MIN_X < char.x_mid < _BODY_COLUMN_MAX_X):
                 continue
             if not _within_clause_range(char, anchor, end_page, end_y):
                 continue
             if _is_clause_number_glyph(char, anchor.word):
                 continue
-            chars.append(char)
-    return chars
+            candidates.append(char)
+    return line_vote_filter(candidates)
 
 
 def _within_clause_range(char: Char, anchor: _Anchor, end_page: int, end_y: float) -> bool:
