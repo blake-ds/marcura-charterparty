@@ -106,53 +106,120 @@ def load_pages(pdf_path: Path) -> tuple[Page, ...]:
 _LINE_VOTE_STRIKE_RATIO = 0.5
 
 
+_LINE_SANDWICH_GAP = 30.0  # max y-gap to count an adjacent line as a sandwich neighbour
+_LINE_HEAVY_RATIO = 0.75  # struck ratio at which a line is "heavy enough" to anchor a sandwich
+
+
 def line_vote_filter(chars: Iterable[Char]) -> list[Char]:
     """Drop fragments left over from partial strike rectangles.
 
-    Three cleanup passes operate on every glyph (struck + visible) for a
+    Four cleanup passes operate on every glyph (struck + visible) for a
     candidate body region:
 
-    1. **Position-aware whole-line vote.** A line is dropped only if its
-       left-most printable glyph is struck *and* the line is more than
-       :data:`_LINE_VOTE_STRIKE_RATIO` struck overall. The "first printable
-       visible" exception preserves lines like ``for the duration of this
-       Charter. [STRUCK Owners shall furnish H & M policy cover note.]`` where
-       the visible content begins the line and the replacement was struck out
-       further right. Lines that begin with struck content and are mostly
-       struck (``[STRUCK ... ] m disconnecting of hoses to ...``) are dropped.
-    2. **Word-level promotion.** On the surviving lines, a word that has *any*
-       struck glyph in it is treated as fully struck. This catches the
-       indemnity → "demnity" / company → "y" pattern where a strike rectangle
-       ends mid-word and the trailing chars would otherwise leak through.
-    3. **Whitespace fidelity.** A whitespace glyph is emitted only when it
-       was visible in the PDF — that preserves spacing between kept words
-       without dragging in struck spaces.
+    1. **Position-aware whole-line vote.** A line is "unsafe" when its
+       left-most printable glyph is struck *and* the line is >50% struck
+       overall, *unless* the first visible non-whitespace glyph is
+       punctuation (the line opens with a comma or colon — a clean
+       continuation tail, e.g. ``[STRUCK item, item], Worldscale charges /
+       dues;``).
+    2. **Sandwich rule.** A line that doesn't trip the rule above but sits
+       tightly (≤18pt gap) between two unsafe lines on the same page is
+       *also* unsafe. Without this, a single low-strike line in the middle
+       of a wholly struck clause body ("pumps and lines including … " in a
+       wholly-replaced VGO cleaning clause where the original line happens
+       to have only a short ``B.Flush`` prefix under its strike rect) would
+       leak the original struck content into the JSON.
+    3. **Word-level promotion.** On the kept lines, a word with *any* struck
+       glyph is dropped whole. Catches the indemnity → "demnity" / company →
+       "y" / Whether → "ther" pattern where a strike ends mid-word.
+    4. **Whitespace fidelity.** Whitespace glyphs are emitted only when
+       visible in the PDF — preserves spacing between kept words without
+       dragging in struck spaces.
     """
     by_line: dict[tuple[int, int], list[Char]] = {}
     for char in chars:
         by_line.setdefault((char.page, round(char.y_mid)), []).append(char)
 
+    lines = sorted(by_line.items())  # ((page, y), [chars]) sorted globally
+
+    unsafe = [_line_is_unsafe(line_chars) for _, line_chars in lines]
+    _apply_sandwich(lines, unsafe)
+
     kept: list[Char] = []
-    for line_chars in by_line.values():
-        sorted_chars = sorted(line_chars, key=lambda c: c.x0)
-        printable = [c for c in sorted_chars if c.text.strip()]
-        if printable:
-            struck_ratio = sum(1 for c in printable if c.struck) / len(printable)
-            if printable[0].struck and struck_ratio > _LINE_VOTE_STRIKE_RATIO:
-                # Mostly-struck line starting with struck content. The visible
-                # portion is suspect — but if it opens with punctuation (a
-                # comma or colon continuing a list, e.g. ``[STRUCK item, item],
-                # Worldscale charges / dues;``) the visible side is a clean
-                # tail, not a mid-word fragment. Punctuation-led visible
-                # content is kept.
-                first_visible_nonspace = next(
-                    (c for c in sorted_chars if not c.struck and c.text.strip()),
-                    None,
-                )
-                if first_visible_nonspace is None or first_visible_nonspace.text.isalnum():
-                    continue
-        kept.extend(_keep_clean_words(sorted_chars))
+    for is_unsafe, (_, line_chars) in zip(unsafe, lines, strict=True):
+        if is_unsafe:
+            continue
+        kept.extend(_keep_clean_words(sorted(line_chars, key=lambda c: c.x0)))
     return kept
+
+
+def _line_is_unsafe(line_chars: list[Char]) -> bool:
+    sorted_chars = sorted(line_chars, key=lambda c: c.x0)
+    printable = [c for c in sorted_chars if c.text.strip()]
+    if not printable:
+        return False  # blank line is harmless
+    if not printable[0].struck:
+        return False  # visible-first → never unsafe
+    struck_ratio = sum(1 for c in printable if c.struck) / len(printable)
+    if struck_ratio <= _LINE_VOTE_STRIKE_RATIO:
+        return False
+    # Punctuation-led exception: visible tail begins with `,` / `:` etc.
+    first_visible_nonspace = next(
+        (c for c in sorted_chars if not c.struck and c.text.strip()), None
+    )
+    if first_visible_nonspace is None:
+        return True
+    return first_visible_nonspace.text.isalnum()
+
+
+def _apply_sandwich(lines: list[tuple[tuple[int, int], list[Char]]], unsafe: list[bool]) -> None:
+    """Mark a line unsafe if its tight neighbours are unsafe too.
+
+    Two-pass: first the immediate-neighbour sweep, then one expansion pass so
+    a chain of contaminated lines propagates (B is sandwiched by A & C; C is
+    then sandwiched by B & D → C unsafe via the second pass). We use the
+    pre-sandwich ``unsafe`` flag as the seed; we additionally count
+    fully-blank lines and ≥85%-struck lines as "unsafe enough" for the
+    sandwich check, so a single low-strike fragment in the middle of a wholly
+    struck clause body is correctly suppressed.
+    """
+    heavy = [_line_heavy_struck(line_chars) for _, line_chars in lines]
+    seed = [a or b for a, b in zip(unsafe, heavy, strict=True)]
+    # Two passes lets sandwich propagate through a tight block of fragments.
+    for _ in range(2):
+        for index in range(1, len(lines) - 1):
+            if unsafe[index]:
+                continue
+            (cur_page, cur_y), _ = lines[index]
+            (prev_page, prev_y), _ = lines[index - 1]
+            (next_page, next_y), _ = lines[index + 1]
+            if cur_page != prev_page or cur_page != next_page:
+                continue
+            if (cur_y - prev_y) > _LINE_SANDWICH_GAP or (next_y - cur_y) > _LINE_SANDWICH_GAP:
+                continue
+            if seed[index - 1] and seed[index + 1]:
+                unsafe[index] = True
+                seed[index] = True
+
+
+def _line_heavy_struck(line_chars: list[Char]) -> bool:
+    """`≥_LINE_HEAVY_RATIO` struck — a sandwich anchor.
+
+    A blank line (no printable glyphs at all) is *not* heavy — it's vertical
+    spacing between paragraphs, not struck content. Treating it as heavy was
+    the bug that swallowed the ``Owners warrant that throughout the duration
+    of this Charter the vessel will be:`` line of shellvoy-41's replacement.
+
+    The 75% threshold catches anchor rows of wholly-replaced clauses (e.g.
+    ``34.`` alone visible while the rest of *Canada Clause*'s title is struck)
+    — those rows must count as sandwich anchors so the surviving mid-clause
+    fragments below them get filtered out.
+    """
+    printable = [c for c in line_chars if c.text.strip()]
+    if not printable:
+        return False
+    struck_ratio = sum(1 for c in printable if c.struck) / len(printable)
+    return struck_ratio >= _LINE_HEAVY_RATIO
 
 
 def _keep_clean_words(line_chars: list[Char]) -> list[Char]:

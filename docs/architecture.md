@@ -84,7 +84,7 @@ Switch deployments by editing `MARCURA_VERIFIER_MODEL` in `.env`; deployments wh
 
 Deterministic, no LLM. `make eval` compares parser output against a hand-curated packaged golden file covering counts, exact ordinal lists, key clauses, and known strike-through traps. Assertions:
 
-1. Clause **count per section** matches the expected ordinals exactly (38 / 36 / 21 in this corpus, after dropping the few clauses whose entire visible content was reduced to a mid-word fragment).
+1. Clause **count per section** matches the expected ordinals exactly (38 / 28 / 21 in this corpus, matching a manually-curated ground truth at [`eval/ground_truth.md`](../eval/ground_truth.md) — every visible clause anchor in the PDF is accounted for as either kept or as a wholly-struck clause that must drop).
 2. **Order is monotonically increasing** within each section.
 3. **Known struck snippets** (e.g. `"Has tanks coated as follows"`) do not appear in any `text`.
 4. **Known surviving snippets** (e.g. the bold replacement of clause 2) do appear.

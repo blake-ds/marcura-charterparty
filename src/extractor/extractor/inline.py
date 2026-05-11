@@ -130,6 +130,67 @@ _BODYISH_TITLE_STARTS = (
 )
 
 
+def _is_wholly_replaced(
+    pages: tuple[Page, ...],
+    anchor: _Anchor,
+    end_page: int,
+    end_y: float,
+) -> bool:
+    """Drop a clause when its anchor row's title was struck *and* the body region
+    is dominated by heavy-struck lines.
+
+    Catches the "Canada Clause / Sidi Kerir Clause / Rotterdam Port Dues
+    Clause" pattern: only the bare ``N.`` is visible on the anchor row (title
+    struck out), most lines below the anchor are entirely under strike rects,
+    and the surviving mid-line glyphs are not real content but rather PDF
+    artefacts where a strike rectangle ended short of the line width.
+    """
+    anchor_page = next((p for p in pages if p.number == anchor.page), None)
+    if anchor_page is None:
+        return False
+    # Title sits to the right of the clause-number token. Anchor numbers live
+    # at x ≈ 50–65; anything past 75 is title content.
+    anchor_row_printable = [
+        c
+        for c in anchor_page.chars
+        if abs(c.y_mid - anchor.y) <= 5 and c.x0 > 75 and c.text.strip()
+    ]
+    if len(anchor_row_printable) < 3:
+        return False
+    struck = sum(1 for c in anchor_row_printable if c.struck)
+    anchor_struck_ratio = struck / len(anchor_row_printable)
+    if anchor_struck_ratio < 0.6:
+        return False
+
+    from collections import defaultdict
+
+    body_lines: dict[tuple[int, int], list[Char]] = defaultdict(list)
+    for page in pages:
+        if page.number < anchor.page or page.number > end_page:
+            continue
+        for char in page.chars:
+            if not (_BODY_X_MIN < char.x_mid < _BODY_X_MAX):
+                continue
+            if char.page == anchor.page and char.y_mid <= anchor.y + _TITLE_LINE_TOLERANCE:
+                continue
+            if char.page == end_page and char.y_mid >= end_y - _TITLE_LINE_TOLERANCE:
+                continue
+            body_lines[(char.page, round(char.y_mid))].append(char)
+
+    nonempty = 0
+    heavy = 0
+    for chars in body_lines.values():
+        printable = [c for c in chars if c.text.strip()]
+        if not printable:
+            continue
+        nonempty += 1
+        if sum(1 for c in printable if c.struck) / len(printable) >= 0.75:
+            heavy += 1
+    if nonempty < 2:
+        return False  # single-line or empty region — leave to downstream logic
+    return heavy / nonempty >= 0.5
+
+
 def _build_clause(
     pages: tuple[Page, ...],
     anchor: _Anchor,
@@ -151,6 +212,9 @@ def _build_clause(
 
     end_page = pages[-1].number if next_anchor is None else next_anchor.page
     end_y = float("inf") if next_anchor is None else next_anchor.y
+
+    if _is_wholly_replaced(pages, anchor, end_page, end_y):
+        return None
 
     body_chars = list(_collect_body_chars(pages, anchor, end_page, end_y))
     body_text = chars_to_text(body_chars)
