@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Charter Party Document Parser — design notes</title>
+<style>
+:root {
+  --ink:        #1c1c1c;
+  --ink-soft:   #585858;
+  --ink-faint:  #8b8b8b;
+  --paper:      #fbf9f4;
+  --card:       #ffffff;
+  --rule:       #e3ddd0;
+  --accent:     #2a4a72;
+  --accent-soft:#dde6f1;
+  --code:       #f0ecdf;
+  --strike:     #b3262f;
+  --shellvoy:   #2a4a72;
+  --additional: #4a8a4a;
+  --essar:      #8c5dc4;
+  --part1:      #c9c2b3;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink:        #ece9e0;
+    --ink-soft:   #b3afa2;
+    --ink-faint:  #6b6b6b;
+    --paper:      #161616;
+    --card:       #1f1e1c;
+    --rule:       #2c2926;
+    --accent:     #7eaee2;
+    --accent-soft:#1f2c3d;
+    --code:       #26241f;
+    --strike:     #e3636b;
+    --shellvoy:   #7eaee2;
+    --additional: #7abe7a;
+    --essar:      #b89be3;
+    --part1:      #3a3833;
+  }
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font: 16px/1.65 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  background: var(--paper);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+.wrap {
+  max-width: 940px;
+  margin: 0 auto;
+  padding: 80px 32px 96px;
+}
+
+/* — title — */
+h1 {
+  margin: 0 0 18px;
+  font-size: 44px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.1;
+}
+.lede {
+  margin: 0 0 56px;
+  font-size: 19px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  max-width: 65ch;
+}
+
+/* — sections — */
+section { margin: 64px 0; scroll-margin-top: 24px; }
+h2 {
+  font-size: 26px;
+  margin: 0 0 14px;
+  letter-spacing: -0.005em;
+  font-weight: 600;
+}
+p { margin: 0 0 14px; max-width: 70ch; line-height: 1.65; }
+p.note { color: var(--ink-soft); max-width: 70ch; }
+code {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.86em;
+  background: var(--code);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+a { color: var(--accent); text-decoration: none; border-bottom: 1px solid transparent; transition: border-bottom-color 120ms ease; }
+a:hover { border-bottom-color: var(--accent); }
+em { font-style: italic; }
+strong { font-weight: 600; }
+
+/* — THE diagram — */
+.story {
+  margin: 32px 0 0;
+}
+.panel {
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  padding: 24px 28px;
+}
+.panel-label {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-faint);
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+.connector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 14px 0;
+  gap: 6px;
+}
+.connector .line {
+  width: 2px;
+  height: 26px;
+  background: var(--accent);
+  border-radius: 1px;
+  position: relative;
+}
+.connector .line::after {
+  content: "";
+  position: absolute;
+  bottom: -7px; left: 50%;
+  width: 0; height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 8px solid var(--accent);
+  transform: translateX(-50%);
+}
+.connector-label {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--ink-soft);
+  letter-spacing: 0.02em;
+}
+
+/* PDF input panel */
+.pdf-snippet {
+  font: 15px/1.7 "Iowan Old Style", Palatino, Georgia, serif;
+  color: var(--ink);
+}
+.pdf-snippet .struck {
+  color: var(--ink-soft);
+  text-decoration: line-through;
+  text-decoration-color: var(--strike);
+  text-decoration-thickness: 2px;
+  text-decoration-skip-ink: none;
+}
+.pdf-meta {
+  margin-top: 12px;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11.5px;
+  color: var(--ink-faint);
+}
+
+/* Algorithm panel */
+.algorithm-panel { padding: 28px; }
+.stages {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  counter-reset: stage;
+}
+.stages li {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: 18px 14px 14px;
+  position: relative;
+  counter-increment: stage;
+}
+.stages li::before {
+  content: counter(stage);
+  position: absolute;
+  top: -12px; left: 14px;
+  background: var(--accent);
+  color: var(--card);
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12px;
+  font-weight: 600;
+}
+.stages li strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin: 4px 0 6px;
+  color: var(--ink);
+}
+.stages li span {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--ink-soft);
+  display: block;
+}
+.verifier-side {
+  margin-top: 22px;
+  padding: 14px 18px;
+  background: var(--accent-soft);
+  border-radius: 8px;
+  border-left: 4px solid var(--accent);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink);
+}
+.verifier-side .branch-label {
+  display: inline-block;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  opacity: 0.85;
+  margin-right: 10px;
+  vertical-align: middle;
+}
+.verifier-side strong { color: var(--accent); }
+
+/* JSON output panel */
+.json-snippet {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12.5px;
+  line-height: 1.65;
+  background: var(--code);
+  padding: 16px 20px;
+  border-radius: 8px;
+  margin: 0;
+  color: var(--ink);
+  overflow-x: auto;
+  white-space: pre;
+}
+.json-snippet .json-key { color: var(--accent); }
+.json-snippet .json-str { color: var(--ink); }
+.json-snippet .json-comment { color: var(--ink-faint); }
+
+@media (max-width: 720px) {
+  .stages { grid-template-columns: repeat(2, 1fr); gap: 18px 12px; }
+}
+
+/* — strike-through walk-through — */
+.strike-demo {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 18px;
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  padding: 24px;
+  align-items: center;
+  margin: 24px 0;
+}
+.strike-demo .pane-label {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-faint);
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+.strike-demo .pdf-panel { font-size: 14px; line-height: 1.65; }
+.strike-demo .pdf-panel .struck {
+  color: var(--ink-soft);
+  text-decoration: line-through;
+  text-decoration-color: var(--strike);
+  text-decoration-thickness: 1.5px;
+  text-decoration-skip-ink: none;
+}
+.strike-demo .arrow {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 18px;
+  color: var(--accent);
+  text-align: center;
+}
+.strike-demo .json-panel {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12.5px;
+  background: var(--code);
+  padding: 12px 14px;
+  border-radius: 6px;
+  align-self: stretch;
+  line-height: 1.6;
+}
+@media (max-width: 700px) {
+  .strike-demo { grid-template-columns: 1fr; }
+  .strike-demo .arrow { transform: rotate(90deg); }
+}
+
+/* — page map — */
+.page-map {
+  display: grid;
+  grid-template-columns: repeat(39, 1fr);
+  gap: 3px;
+  margin: 14px 0 8px;
+}
+.page-map .col {
+  height: 56px;
+  border-radius: 2px;
+  transition: transform 120ms ease, filter 120ms ease;
+}
+.page-map .col:hover { transform: scaleY(1.1); filter: brightness(1.1); }
+.page-map .col.p1 { background: var(--part1); }
+.page-map .col.sh { background: var(--shellvoy); }
+.page-map .col.ad { background: var(--additional); }
+.page-map .col.es { background: var(--essar); }
+.page-map-axis {
+  display: flex; justify-content: space-between;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--ink-faint);
+  margin-top: 4px;
+}
+.legend {
+  display: flex; flex-wrap: wrap; gap: 8px 22px;
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin-top: 10px;
+}
+.legend .sw {
+  display: inline-block;
+  width: 12px; height: 12px;
+  border-radius: 2px;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
+/* — tables — */
+table.data {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 14px 0;
+  font-size: 14.5px;
+}
+table.data th, table.data td {
+  text-align: left;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--rule);
+}
+table.data th {
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+}
+table.data tr:last-child td { border-bottom: none; }
+table.data code { font-size: 12.5px; }
+
+/* — footer — */
+footer.colophon {
+  margin-top: 88px;
+  padding-top: 22px;
+  border-top: 1px solid var(--rule);
+  font-size: 13px;
+  color: var(--ink-faint);
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Charter Party Document Parser</h1>
+  <p class="lede">Extract every legal clause from a 39-page voyage charter party PDF into structured JSON. Strike-through edits are removed by reading the PDF's drawing rectangles directly — every word that ends up in <code>clauses.json</code> is traceable to a glyph on the source page.</p>
+
+  <section id="how">
+    <h2>How it works</h2>
+    <p class="note">One real clause through the whole pipeline. The PDF shows clause 6 with one phrase struck out — the parser tags struck glyphs from the PDF's own drawing rectangles, then assembles the surviving text into the deliverable JSON.</p>
+
+    <div class="story">
+
+      <!-- INPUT panel -->
+      <div class="panel">
+        <span class="panel-label">Source — PDF page 7, clause 6</span>
+        <div class="pdf-snippet">
+          Dues and other charges upon the vessel, including those assessed by reference to the quantity of cargo loaded or discharged, <span class="struck">and any taxes on freight whatsoever</span> shall be paid by Owners, and dues and other charges upon the cargo shall be paid by Charterers.
+        </div>
+        <div class="pdf-meta">PyMuPDF rawdict + page.get_drawings() — 134k char bboxes, 794 thin rectangles</div>
+      </div>
+
+      <div class="connector">
+        <div class="line"></div>
+        <span class="connector-label">deterministic pipeline · five stages</span>
+      </div>
+
+      <!-- ALGORITHM panel -->
+      <div class="panel algorithm-panel">
+        <span class="panel-label">Algorithm</span>
+        <ol class="stages">
+          <li>
+            <strong>Load PDF</strong>
+            <span>PyMuPDF: per-glyph bboxes + page drawing rectangles</span>
+          </li>
+          <li>
+            <strong>Filter strikes</strong>
+            <span>tag a glyph "struck" if its bbox centre lies in a thin rect (h ≈ 0.42 pt)</span>
+          </li>
+          <li>
+            <strong>Detect sections</strong>
+            <span>match header text in top of page → SHELLVOY · Additional · Essar</span>
+          </li>
+          <li>
+            <strong>Parse clauses</strong>
+            <span>per section: find <code>N.</code> anchors, collect title and body chars in column</span>
+          </li>
+          <li>
+            <strong>Emit</strong>
+            <span><code>{id, title, text}</code> JSON + a hand-styled browseable HTML</span>
+          </li>
+        </ol>
+        <div class="verifier-side">
+          <span class="branch-label">optional side-loop</span>
+          <strong>Azure LLM verifier</strong> — reads the emitted clauses as HTML-tagged input, returns strict JSON anomalies (truncated, merged, out-of-order). Advisory only; never rewrites text. A verifier outage cannot break a deterministic extraction.
+        </div>
+      </div>
+
+      <div class="connector">
+        <div class="line"></div>
+        <span class="connector-label">clauses serialized</span>
+      </div>
+
+      <!-- OUTPUT panel -->
+      <div class="panel">
+        <span class="panel-label">Output — clauses.json (87 entries, document order)</span>
+<pre class="json-snippet">[
+  {
+    <span class="json-key">"id"</span>: <span class="json-str">"shellvoy-6"</span>,
+    <span class="json-key">"title"</span>: <span class="json-str">"Dues and other charges"</span>,
+    <span class="json-key">"text"</span>: <span class="json-str">"Dues and other charges upon the vessel, including those assessed by reference to the quantity of cargo loaded or discharged, and shall be paid by Owners, and dues and other charges upon the cargo shall be paid by Charterers..."</span>
+  },
+  <span class="json-comment">// 86 more</span>
+]</pre>
+      </div>
+
+    </div>
+  </section>
+
+  <section id="strikes">
+    <h2>Why strike-through is the hard part</h2>
+    <p>In this PDF strike-through is rendered as a <strong>thin filled rectangle</strong> drawn over the glyphs — <em>not</em> a PDF annotation, <em>not</em> a font flag. PyMuPDF exposes those rectangles through <code>page.get_drawings()</code>; a glyph counts as struck when its bbox centre lies inside one of them. Sound enough until a rectangle stops half-way through a word and leaves orphan glyphs visible.</p>
+
+    <div class="strike-demo">
+      <div class="pdf-panel">
+        <span class="pane-label">PDF</span>
+        Owners shall be liable for any loss, damage or <span class="struck">delay caused by the personal act or </span>fault of the Master.
+      </div>
+      <div class="arrow">→</div>
+      <div class="json-panel">
+        <span class="pane-label">filtered text</span>
+        Owners shall be liable for any loss, damage or fault of the Master.
+      </div>
+    </div>
+
+    <p>Three cleanup rules ride on top of the per-glyph mark, each one driven by a real failure mode in the corpus:</p>
+    <ul>
+      <li><strong>Position-aware whole-line vote.</strong> A line is dropped only when its first printable glyph is struck <em>and</em> the line is more than 50 % struck overall. This keeps lines whose visible content opens with real prose; it discards lines whose surviving glyphs are mid-sentence debris.</li>
+      <li><strong>Word-level promotion.</strong> If any glyph inside a word is struck, the whole word goes. Catches the <code>indemnity → "demnity"</code> orphan-suffix pattern where a rectangle ends mid-word.</li>
+      <li><strong>Sandwich rule.</strong> A clean-ish line tightly between two heavy-struck lines on the same page is also dropped — the surviving glyphs are debris from a rectangle that happened to end short of the line width.</li>
+    </ul>
+  </section>
+
+  <section id="layout">
+    <h2>Part II is three documents stitched together</h2>
+    <p>Inside Part II (pages 6–39) the clause-numbering restarts three times. Each section uses a different layout, and the parser branches accordingly.</p>
+
+    <div class="page-map" aria-label="Pages 1-39 coloured by section">
+      <div class="col p1"></div><div class="col p1"></div><div class="col p1"></div><div class="col p1"></div><div class="col p1"></div>
+      <div class="col sh"></div><div class="col sh"></div><div class="col sh"></div><div class="col sh"></div><div class="col sh"></div><div class="col sh"></div><div class="col sh"></div><div class="col sh"></div><div class="col sh"></div><div class="col sh"></div><div class="col sh"></div><div class="col sh"></div>
+      <div class="col ad"></div><div class="col ad"></div><div class="col ad"></div><div class="col ad"></div><div class="col ad"></div><div class="col ad"></div><div class="col ad"></div><div class="col ad"></div><div class="col ad"></div><div class="col ad"></div><div class="col ad"></div><div class="col ad"></div><div class="col ad"></div><div class="col ad"></div><div class="col ad"></div><div class="col ad"></div><div class="col ad"></div><div class="col ad"></div>
+      <div class="col es"></div><div class="col es"></div><div class="col es"></div><div class="col es"></div>
+    </div>
+    <div class="page-map-axis"><span>1</span><span>5</span><span>10</span><span>15</span><span>20</span><span>25</span><span>30</span><span>35</span><span>39</span></div>
+    <div class="legend">
+      <span><span class="sw" style="background: var(--part1);"></span>Part I — particulars (skipped)</span>
+      <span><span class="sw" style="background: var(--shellvoy);"></span>SHELLVOY 5 — two-column layout</span>
+      <span><span class="sw" style="background: var(--additional);"></span>Shell Additional — inline titles</span>
+      <span><span class="sw" style="background: var(--essar);"></span>Essar Rider — inline titles</span>
+    </div>
+
+    <table class="data">
+      <thead><tr><th>Section</th><th>Pages</th><th>Numbering</th><th>Layout</th><th>Kept / total</th></tr></thead>
+      <tbody>
+        <tr><td>SHELLVOY 5 standard clauses</td><td>6–17</td><td><code>1..44</code></td><td>two-column: titles in left margin, body in right column</td><td>38 / 44</td></tr>
+        <tr><td>Shell Additional Clauses (Feb 1999)</td><td>18–35</td><td><code>1..43</code> (resets)</td><td>single column: <code>N.</code> + title inline, body on next line</td><td>28 / 43</td></tr>
+        <tr><td>Essar Rider Clauses (Dec 2006)</td><td>36–39</td><td><code>1..22</code> (resets)</td><td>single column: <code>N.</code> + title inline, body on next line</td><td>21 / 22</td></tr>
+      </tbody>
+    </table>
+
+    <p class="note">Numbering resets three times, so <code>id="1"</code> would appear three times under the brief's literal reading. The output prefixes each id with the section — <code>shellvoy-1</code>, <code>additional-1</code>, <code>essar-1</code> — keeping the flat JSON list collision-free.</p>
+
+    <p class="note"><strong>22 clauses are wholly replaced.</strong> Each has its title struck and its body either fully struck or reduced to mid-word debris by a partial rectangle (e.g. <em>Canada Clause</em>, <em>Sidi Kerir Clause</em>, <em>Rotterdam Port Dues Clause</em>). These are dropped on purpose. Every drop is documented page-by-page in <a href="../../eval/ground_truth.md"><code>eval/ground_truth.md</code></a>.</p>
+  </section>
+
+  <section id="verifier">
+    <h2>The LLM verifier</h2>
+    <p>The Azure-hosted LLM never writes <code>clauses.json</code>. It reads the deterministic parser output, formatted as <code>&lt;clause id="…"&gt;&lt;title&gt;…&lt;/title&gt;&lt;text&gt;…&lt;/text&gt;&lt;/clause&gt;</code>, and returns a strict-JSON list of anomalies (truncated, merged, out-of-order). The runner logs them as warnings and returns normally — a verifier outage must not break a deterministic extraction.</p>
+
+    <p><strong>Is the LLM strictly necessary for this PDF?</strong> No — the deterministic parser already passes every eval gate against the hand-curated ground truth, and the LLM is deliberately scoped to a judge-not-author role. The principle: <em>don't use an LLM where a deterministic algorithm suffices</em>. Where it would earn its keep is <strong>generalisation</strong> — pointed at a <em>different</em> charter party (different boilerplate, different strike-through conventions, different column geometry), the hand-tuned rules above would need re-tuning, and a verifier that can reason about structure becomes genuinely load-bearing. Other directions worth exploring on a larger corpus (semantic clause-type tagging, automated ground-truth proposal, layout-class inference) are real ideas — but overkill for a single-document submission.</p>
+
+    <p class="note">A handful of clauses surface advisory flags every run — <code>shellvoy-4</code>, <code>additional-1</code>, <code>additional-11</code> for "text ends mid-sentence", and <code>additional-1</code> sometimes for "two distinct subjects suggesting merged clauses". All known false positives: the PDF clause itself ends mid-sentence (struck tail) or contains a real discontinuity (struck region between two paragraphs of the same clause). Cross-referenced to <a href="../../eval/ground_truth.md"><code>eval/ground_truth.md</code></a> in <a href="../architecture.md#llm-verifier">architecture.md</a>.</p>
+  </section>
+
+  <section id="output">
+    <h2>Output</h2>
+    <ul>
+      <li><a href="../../output/clauses.json"><code>output/clauses.json</code></a> — the deliverable, 87 entries matching the brief's <code>{id, title, text}</code> schema</li>
+      <li><a href="../../output/clauses.html"><code>output/clauses.html</code></a> — the same data rendered as a browseable, self-contained HTML view</li>
+      <li><a href="../architecture.md"><code>docs/architecture.md</code></a> — full technical write-up: pipeline stages, eval, scope/out-of-scope</li>
+      <li><a href="../../eval/ground_truth.md"><code>eval/ground_truth.md</code></a> — page-by-page manual ground truth used to gate the eval</li>
+    </ul>
+  </section>
+
+  <footer class="colophon">
+    Single-file HTML, hand-styled. No build step, no framework. <a href="https://github.com/blake-ds/marcura-charterparty" style="color: inherit; border-bottom: 1px dashed currentColor;">github.com/blake-ds/marcura-charterparty</a>
+  </footer>
+
+</div>
+</body>
+</html>

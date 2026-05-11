@@ -1,39 +1,32 @@
-# AI Engineer Challenge: Charter Party Document Parser
+# Charter Party Document Parser
 
-## Overview
+Marcura AI Engineer challenge — extract legal clauses from a 39-page voyage charter party PDF into structured JSON, with strike-through edits filtered out.
 
-Your task is to build a Python application that parses a maritime charter party document (PDF) and extracts legal clauses in a structured format using LLM capabilities.
+> [!IMPORTANT]
+> **For a one-shot visual overview, open [`docs/site/index.html`](docs/site/index.html) in your browser.**
+> Hand-crafted single-file showcase with diagrams — the fastest way to grasp the architecture.
 
-## Document
+## Quick start
 
-**Source:** https://shippingforum.wordpress.com/wp-content/uploads/2012/09/voyage-charter-example.pdf
+```bash
+make install            # uv sync + install pre-commit hook
+cp .env.example .env    # fill in Azure endpoint + key — required for `make run`
+make run                # extract → output/clauses.json + output/clauses.html + Azure LLM verifier pass
+make eval               # 25 deterministic checks vs golden file (no LLM)
+make test               # 47 unit tests
+```
 
-This is a voyage charter party agreement – a standard maritime contract used in shipping. The document contains:
-- **Part I**: Particulars/Details (skip this section)
-- **Part II**: Legal clauses with numbered provisions (**Pages 6–39**)
+The deliverable is [`output/clauses.json`](output/clauses.json).
 
-## Requirements
+## Where to look next
 
-1. **Extract legal clauses from Part II** of the document (**Pages 6–39**)
-2. **For each clause, extract:**
-   - `id`: The clause identifier (e.g., "1", "2", "3", etc.)
-   - `title`: The clause title/heading
-   - `text`: The full clause text content
+| Path | What it is |
+|---|---|
+| [`docs/site/index.html`](docs/site/index.html) | **Visual one-shot showcase — start here** |
+| [`docs/`](docs/) | Approach narrative + markdown design notes |
+| [`output/clauses.json`](output/clauses.json) | The 87-clause JSON deliverable |
+| [`output/clauses.html`](output/clauses.html) | Browseable view of all 87 clauses |
 
-3. **Output the extracted clauses** in a structured JSON format. 
-4. Do not include strike-thru text.
-5. Clauses should be returned in the order they appear in the document.
+## Working agreement
 
-**DO include the output json in the final submission**
-
-### Technical Requirements
-
-1. You can use any LLM of your choice.
-2. Focus on code quality. It should show your python skills!
-3. We should be able to run your code locally.
-
-**DO NOT include your API key in the submission!**
-
-PS. Please publish the solution to your GitHub and invite us to review it.
-
-Any questions shoot and good luck!
+Coding conventions for any contributor (human or AI) live in three parity files: [`CLAUDE.md`](CLAUDE.md) (Claude Code), [`AGENTS.md`](AGENTS.md) (Codex), [`.cursorrules`](.cursorrules) (Antigravity, Cursor).
