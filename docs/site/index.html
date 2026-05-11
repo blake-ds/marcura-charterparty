@@ -1,0 +1,841 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Charter Party Document Parser — design notes</title>
+<style>
+:root {
+  --ink:        #1c1c1c;
+  --ink-soft:   #585858;
+  --ink-faint:  #8b8b8b;
+  --paper:      #fbf9f4;
+  --card:       #ffffff;
+  --rule:       #e3ddd0;
+  --accent:     #2a4a72;
+  --accent-soft:#dde6f1;
+  --code:       #f0ecdf;
+  --green:      #4a8a4a;
+  --amber:      #b87a00;
+  --strike:     #b3262f;
+  --part1:      #c9c2b3;
+  --shellvoy:   #2a4a72;
+  --additional: #4a8a4a;
+  --essar:      #8c5dc4;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink:        #ece9e0;
+    --ink-soft:   #b3afa2;
+    --ink-faint:  #6b6b6b;
+    --paper:      #161616;
+    --card:       #1f1e1c;
+    --rule:       #2c2926;
+    --accent:     #7eaee2;
+    --accent-soft:#1f2c3d;
+    --code:       #26241f;
+    --green:      #7abe7a;
+    --amber:      #d8a235;
+    --strike:     #e3636b;
+    --part1:      #3a3833;
+    --shellvoy:   #7eaee2;
+    --additional: #7abe7a;
+    --essar:      #b89be3;
+  }
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font: 16px/1.65 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  background: var(--paper);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+.wrap {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 80px 32px 120px;
+}
+
+/* — hero — */
+header.hero {
+  margin-bottom: 72px;
+  padding-bottom: 40px;
+  border-bottom: 1px solid var(--rule);
+  position: relative;
+}
+.eyebrow {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--ink-faint);
+  margin: 0 0 20px;
+  font-weight: 600;
+}
+h1 {
+  margin: 0 0 16px;
+  font-size: 56px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+.tagline {
+  margin: 0 0 32px;
+  font-size: 20px;
+  color: var(--ink-soft);
+  max-width: 60ch;
+  line-height: 1.5;
+}
+
+.hero-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 4px 28px;
+  margin: 32px 0 0;
+  padding: 24px 0 0;
+  border-top: 1px solid var(--rule);
+  list-style: none;
+}
+.hero-stats li { font-size: 13px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.08em; }
+.hero-stats strong {
+  display: block;
+  color: var(--ink);
+  font-size: 32px;
+  font-weight: 600;
+  font-feature-settings: "tnum" 1;
+  letter-spacing: -0.02em;
+  margin-bottom: 2px;
+  text-transform: none;
+}
+.hero-stats em {
+  display: block;
+  font-style: normal;
+  font-size: 11px;
+  color: var(--ink-faint);
+  margin-top: 4px;
+  letter-spacing: 0.04em;
+}
+.repo-link {
+  display: inline-block;
+  margin-top: 28px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--accent);
+  padding-bottom: 1px;
+  transition: border-bottom-style 120ms ease;
+}
+.repo-link:hover { border-bottom-style: solid; }
+
+/* — section + headings — */
+section { margin: 88px 0; scroll-margin-top: 24px; }
+h2 {
+  font-size: 30px;
+  margin: 0 0 12px;
+  letter-spacing: -0.01em;
+  font-weight: 600;
+  line-height: 1.15;
+}
+h2 .num {
+  color: var(--ink-faint);
+  font-feature-settings: "tnum" 1;
+  font-weight: 400;
+  margin-right: 14px;
+  font-size: 0.78em;
+}
+h3 { font-size: 17px; margin: 28px 0 10px; font-weight: 600; }
+.intro {
+  color: var(--ink-soft);
+  margin: 0 0 32px;
+  max-width: 68ch;
+  font-size: 17px;
+  line-height: 1.55;
+}
+p { margin: 0 0 14px; max-width: 70ch; }
+code, kbd {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.86em;
+  background: var(--code);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+a { color: var(--accent); text-decoration: none; border-bottom: 1px solid transparent; transition: border-bottom-color 120ms ease; }
+a:hover { border-bottom-color: var(--accent); }
+
+/* — card primitive — */
+.card {
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  padding: 28px 32px;
+  margin: 0 0 24px;
+}
+.card-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-faint);
+  font-weight: 600;
+  margin: 0 0 18px;
+}
+
+/* — page map (39 pages) — */
+.page-map {
+  display: grid;
+  grid-template-columns: repeat(39, 1fr);
+  gap: 3px;
+  margin: 4px 0 22px;
+}
+.page-map .col {
+  height: 64px;
+  border-radius: 2px;
+  position: relative;
+}
+.page-map .col.p1   { background: var(--part1); }
+.page-map .col.sh   { background: var(--shellvoy); }
+.page-map .col.ad   { background: var(--additional); }
+.page-map .col.es   { background: var(--essar); }
+.page-map .col { transition: transform 120ms ease, filter 120ms ease; }
+.page-map .col:hover { transform: scaleY(1.12); filter: brightness(1.1); }
+.page-map-legend {
+  display: flex; flex-wrap: wrap; gap: 18px;
+  font-size: 13px; color: var(--ink-soft);
+  margin-top: 6px;
+}
+.page-map-legend .sw {
+  display: inline-block;
+  width: 12px; height: 12px;
+  border-radius: 2px;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+.page-map-axis {
+  display: flex; justify-content: space-between;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px; color: var(--ink-faint);
+  margin: 4px 0 0;
+}
+
+/* — funnel — */
+.funnel { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.funnel li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  padding: 14px 22px;
+  border-radius: 6px;
+  font-size: 15px;
+  position: relative;
+  background: var(--card);
+  border: 1px solid var(--rule);
+}
+.funnel li .stage {
+  font-weight: 500;
+  color: var(--ink);
+}
+.funnel li .stage small {
+  display: block;
+  font-size: 12px;
+  color: var(--ink-faint);
+  font-weight: 400;
+  margin-top: 2px;
+}
+.funnel li .count {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-feature-settings: "tnum" 1;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: -0.01em;
+}
+.funnel li::before {
+  content: "";
+  position: absolute;
+  left: -1px; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--accent);
+  border-radius: 2px 0 0 2px;
+}
+.funnel li.kept::before { background: var(--green); }
+.funnel li.kept .count { color: var(--green); }
+.funnel li.drop::before { background: var(--strike); }
+.funnel li.drop .count { color: var(--strike); }
+
+/* — pipeline (kept, condensed) — */
+.pipeline {
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  padding: 28px 24px;
+  margin: 0;
+  overflow-x: auto;
+}
+.pipeline svg { display: block; max-width: 100%; height: auto; }
+
+/* — section table — */
+.section-table { width: 100%; border-collapse: collapse; margin: 16px 0 0; font-size: 15px; }
+.section-table th, .section-table td {
+  text-align: left;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--rule);
+}
+.section-table th {
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+}
+.section-table tr:last-child td { border-bottom: none; }
+.section-table code { font-size: 13px; }
+.section-table td.pages { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; margin-right: 8px; }
+.dot.sh { background: var(--shellvoy); }
+.dot.ad { background: var(--additional); }
+.dot.es { background: var(--essar); }
+
+/* — layout comparison — */
+.layouts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin: 4px 0 0;
+}
+.layout-mock {
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: 22px 20px;
+  font-family: "Iowan Old Style", Palatino, Georgia, serif;
+  font-size: 12px;
+  line-height: 1.5;
+  position: relative;
+  min-height: 220px;
+}
+.layout-mock h4 {
+  margin: 0 0 14px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+  font-weight: 600;
+}
+.mock-shellvoy { display: grid; grid-template-columns: 70px 1fr; gap: 10px; column-gap: 14px; }
+.mock-shellvoy .mtitle {
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--shellvoy);
+  text-align: right;
+}
+.mock-shellvoy .mbody {
+  color: var(--ink-soft);
+  font-size: 11px;
+  line-height: 1.55;
+}
+.mock-shellvoy .mbody::before {
+  content: "N. ";
+  font-weight: 600;
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  margin-right: 2px;
+}
+.mock-inline .row { margin-bottom: 12px; }
+.mock-inline .row .anchor {
+  font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: var(--additional);
+  margin-right: 6px;
+}
+.mock-inline .row .ititle { font-weight: 600; }
+.mock-inline .row .ibody { color: var(--ink-soft); font-size: 11px; display: block; margin-top: 4px; padding-left: 0; }
+@media (max-width: 700px) { .layouts { grid-template-columns: 1fr; } }
+
+/* — strike-through demo — */
+.strike-demo {
+  display: grid;
+  grid-template-columns: 1fr 24px 1fr;
+  gap: 18px;
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  padding: 26px;
+  align-items: center;
+}
+.strike-demo .panel { font-size: 14px; line-height: 1.6; }
+.strike-demo .panel-label {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-faint);
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+.strike-demo .panel.pdf .struck {
+  color: var(--ink-soft);
+  position: relative;
+  white-space: nowrap;
+}
+.strike-demo .panel.pdf .struck::after {
+  content: "";
+  position: absolute;
+  left: -2px; right: -2px;
+  top: 50%;
+  height: 1.5px;
+  background: var(--strike);
+  transform: translateY(-50%);
+}
+.strike-demo .arrow {
+  font-size: 22px;
+  color: var(--accent);
+  text-align: center;
+  line-height: 1;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.strike-demo .panel.json {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  background: var(--code);
+  padding: 14px 16px;
+  border-radius: 6px;
+  align-self: stretch;
+}
+@media (max-width: 700px) {
+  .strike-demo { grid-template-columns: 1fr; }
+  .strike-demo .arrow { transform: rotate(90deg); padding: 4px 0; }
+}
+
+/* — rule cards — */
+.rules {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+  margin: 22px 0 0;
+}
+.rule {
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: 18px 20px;
+  position: relative;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.rule h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  font-weight: 600;
+}
+.rule .glyphs {
+  display: block;
+  margin-top: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  background: var(--code);
+  padding: 6px 10px;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+/* — sample clause card — */
+.clause-card {
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  padding: 26px 32px;
+}
+.clause-card .clause-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  background: var(--code);
+  padding: 2px 8px;
+  border-radius: 4px;
+  color: var(--ink-soft);
+  vertical-align: middle;
+}
+.clause-card h3.clause-title {
+  display: inline-block;
+  margin: 0 0 0 10px;
+  font-size: 19px;
+  font-weight: 600;
+  vertical-align: middle;
+}
+.clause-card .clause-body { margin: 14px 0 0; font-size: 14.5px; line-height: 1.7; color: var(--ink); max-width: none; }
+.clause-card .clause-body p:last-child { margin-bottom: 0; }
+
+/* — eval grid — */
+.eval-summary {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap;
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-left: 4px solid var(--green);
+  border-radius: 6px;
+  padding: 16px 22px;
+  margin: 0 0 18px;
+}
+.eval-summary .big {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--green);
+  font-feature-settings: "tnum" 1;
+}
+.eval-summary span { color: var(--ink-soft); font-size: 14px; }
+.eval {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.eval li {
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--green);
+  padding: 10px 14px;
+  font-size: 14px;
+  border-radius: 0 4px 4px 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.eval li::after { content: "PASS"; color: var(--green); font-weight: 600; font-size: 11px; align-self: center; letter-spacing: 0.04em; }
+
+/* — decisions — */
+.decisions { display: grid; grid-template-columns: max-content 1fr; gap: 10px 28px; margin: 16px 0 0; }
+.decisions dt { font-weight: 600; color: var(--accent); }
+.decisions dd { margin: 0; color: var(--ink-soft); max-width: 60ch; }
+
+/* — note callout — */
+.note {
+  background: var(--accent-soft);
+  border-left: 3px solid var(--accent);
+  padding: 14px 18px;
+  border-radius: 0 6px 6px 0;
+  margin: 20px 0;
+  font-size: 14.5px;
+  color: var(--ink);
+}
+.note strong { color: var(--accent); }
+
+/* — footer — */
+footer.colophon {
+  margin-top: 96px;
+  padding-top: 24px;
+  border-top: 1px solid var(--rule);
+  font-size: 13px;
+  color: var(--ink-faint);
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+footer.colophon a { color: var(--ink-soft); border-bottom: 1px dashed var(--ink-faint); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <p class="eyebrow">Marcura · AI Engineer challenge</p>
+    <h1>Charter Party<br/>Document Parser</h1>
+    <p class="tagline">A 39-page voyage charter party — three concatenated boilerplates, hundreds of strike-through edits — turned into structured JSON whose every word is traceable to a glyph on the source page.</p>
+
+    <ul class="hero-stats">
+      <li><strong>87</strong>clauses<em>in clauses.json</em></li>
+      <li><strong>794</strong>strike rects<em>filtered out</em></li>
+      <li><strong>21</strong>wholly-struck<em>dropped</em></li>
+      <li><strong>25 / 25</strong>eval gates<em>green in CI</em></li>
+      <li><strong>~1 s</strong>end-to-end<em>deterministic parse</em></li>
+    </ul>
+    <a class="repo-link" href="https://github.com/blake-ds/marcura-charterparty">→ github.com/blake-ds/marcura-charterparty</a>
+  </header>
+
+  <section id="approach">
+    <h2><span class="num">01</span>The pipeline</h2>
+    <p class="intro">PyMuPDF owns text fidelity. The Azure-hosted LLM is an optional verifier — never a transcriber. Five deterministic stages; one optional advisory side-loop.</p>
+
+    <div class="pipeline" aria-label="Pipeline diagram">
+      <svg viewBox="0 0 880 220" xmlns="http://www.w3.org/2000/svg" role="img">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+          </marker>
+          <style>
+            .box { fill: var(--card); stroke: var(--rule); stroke-width: 1; }
+            .box-text { font: 13px "Iowan Old Style", Palatino, Georgia, serif; fill: var(--ink); }
+            .box-sub  { font: 11px "JetBrains Mono", ui-monospace, monospace; fill: var(--ink-soft); }
+            .arrow    { fill: none; stroke: var(--accent); stroke-width: 1.4; }
+            .verifier { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1; }
+            .verifier-text { font: 13px "Iowan Old Style", Palatino, Georgia, serif; fill: var(--accent); font-weight: 600; }
+          </style>
+        </defs>
+        <rect class="box" x="20"  y="20" width="140" height="64" rx="4"/>
+        <text class="box-text" x="90"  y="46" text-anchor="middle">PDF (39 pages)</text>
+        <text class="box-sub"  x="90"  y="64" text-anchor="middle">PyMuPDF rawdict</text>
+        <rect class="box" x="190" y="20" width="160" height="64" rx="4"/>
+        <text class="box-text" x="270" y="46" text-anchor="middle">Strike filter</text>
+        <text class="box-sub"  x="270" y="64" text-anchor="middle">char ∩ thin-rect</text>
+        <rect class="box" x="380" y="20" width="160" height="64" rx="4"/>
+        <text class="box-text" x="460" y="46" text-anchor="middle">Section detect</text>
+        <text class="box-sub"  x="460" y="64" text-anchor="middle">3 ranges</text>
+        <rect class="box" x="570" y="20" width="160" height="64" rx="4"/>
+        <text class="box-text" x="650" y="46" text-anchor="middle">Per-section parse</text>
+        <text class="box-sub"  x="650" y="64" text-anchor="middle">2-col / inline</text>
+        <rect class="box" x="760" y="20" width="100" height="64" rx="4"/>
+        <text class="box-text" x="810" y="46" text-anchor="middle">JSON</text>
+        <text class="box-sub"  x="810" y="64" text-anchor="middle">+ HTML</text>
+        <path class="arrow" d="M160,52 L188,52" marker-end="url(#arr)"/>
+        <path class="arrow" d="M350,52 L378,52" marker-end="url(#arr)"/>
+        <path class="arrow" d="M540,52 L568,52" marker-end="url(#arr)"/>
+        <path class="arrow" d="M730,52 L758,52" marker-end="url(#arr)"/>
+        <rect class="verifier" x="380" y="140" width="350" height="56" rx="4"/>
+        <text class="verifier-text" x="555" y="166" text-anchor="middle">Optional LLM verifier (Azure)</text>
+        <text class="box-sub" x="555" y="184" text-anchor="middle">advisory anomalies — never rewrites text</text>
+        <path class="arrow" d="M650,84 L555,138" marker-end="url(#arr)" stroke-dasharray="3,3"/>
+      </svg>
+    </div>
+  </section>
+
+  <section id="reduction">
+    <h2><span class="num">02</span>Data reduction</h2>
+    <p class="intro">Five steps from raw glyphs to the deliverable. Strike-through is the dominant filter; the rest is layout-aware assembly.</p>
+
+    <ol class="funnel" aria-label="Data reduction at each pipeline stage">
+      <li>
+        <div class="stage">39 PDF pages<small>scope narrowed to Part II → pages 6–39</small></div>
+        <div class="count">39</div>
+      </li>
+      <li>
+        <div class="stage">~135 000 glyphs<small>char-level extraction via PyMuPDF <code>rawdict</code></small></div>
+        <div class="count">~135 k</div>
+      </li>
+      <li>
+        <div class="stage">794 strike rectangles<small>thin filled rects (h ≈ 0.42 pt) drawn over text</small></div>
+        <div class="count">794</div>
+      </li>
+      <li>
+        <div class="stage">108 clause anchors<small>numbered openers across SHELLVOY / Additional / Essar</small></div>
+        <div class="count">108</div>
+      </li>
+      <li class="drop">
+        <div class="stage">21 wholly-struck dropped<small>title struck <em>and</em> body dominated by heavy-struck lines</small></div>
+        <div class="count">−21</div>
+      </li>
+      <li class="kept">
+        <div class="stage">87 clauses in clauses.json<small><code>shellvoy-…</code> / <code>additional-…</code> / <code>essar-…</code> prefixed ids</small></div>
+        <div class="count">87</div>
+      </li>
+    </ol>
+  </section>
+
+  <section id="sections">
+    <h2><span class="num">03</span>Three boilerplates, two layouts</h2>
+    <p class="intro">Part II is the concatenation of three documents, each restarting at clause 1. Two layouts: a two-column SHELLVOY page with left-margin titles, and inline-title pages for the Additional + Essar rider sections.</p>
+
+    <div class="card" style="padding: 24px 28px;">
+      <p class="card-title">Part II page map · pages 1–39</p>
+      <div class="page-map" aria-label="39 pages coloured by section">
+        <!-- Part I (1-5) -->
+        <div class="col p1" title="Page 1 — Part I"></div>
+        <div class="col p1" title="Page 2 — Part I"></div>
+        <div class="col p1" title="Page 3 — Part I"></div>
+        <div class="col p1" title="Page 4 — Part I"></div>
+        <div class="col p1" title="Page 5 — Part I"></div>
+        <!-- SHELLVOY (6-17) -->
+        <div class="col sh" title="Page 6 — SHELLVOY 5"></div>
+        <div class="col sh" title="Page 7 — SHELLVOY 5"></div>
+        <div class="col sh" title="Page 8 — SHELLVOY 5"></div>
+        <div class="col sh" title="Page 9 — SHELLVOY 5"></div>
+        <div class="col sh" title="Page 10 — SHELLVOY 5"></div>
+        <div class="col sh" title="Page 11 — SHELLVOY 5"></div>
+        <div class="col sh" title="Page 12 — SHELLVOY 5"></div>
+        <div class="col sh" title="Page 13 — SHELLVOY 5"></div>
+        <div class="col sh" title="Page 14 — SHELLVOY 5"></div>
+        <div class="col sh" title="Page 15 — SHELLVOY 5"></div>
+        <div class="col sh" title="Page 16 — SHELLVOY 5"></div>
+        <div class="col sh" title="Page 17 — SHELLVOY 5"></div>
+        <!-- Additional (18-35) -->
+        <div class="col ad" title="Page 18 — Shell Additional"></div>
+        <div class="col ad" title="Page 19 — Shell Additional"></div>
+        <div class="col ad" title="Page 20 — Shell Additional"></div>
+        <div class="col ad" title="Page 21 — Shell Additional"></div>
+        <div class="col ad" title="Page 22 — Shell Additional"></div>
+        <div class="col ad" title="Page 23 — Shell Additional"></div>
+        <div class="col ad" title="Page 24 — Shell Additional"></div>
+        <div class="col ad" title="Page 25 — Shell Additional"></div>
+        <div class="col ad" title="Page 26 — Shell Additional"></div>
+        <div class="col ad" title="Page 27 — Shell Additional"></div>
+        <div class="col ad" title="Page 28 — Shell Additional"></div>
+        <div class="col ad" title="Page 29 — Shell Additional"></div>
+        <div class="col ad" title="Page 30 — Shell Additional"></div>
+        <div class="col ad" title="Page 31 — Shell Additional"></div>
+        <div class="col ad" title="Page 32 — Shell Additional"></div>
+        <div class="col ad" title="Page 33 — Shell Additional"></div>
+        <div class="col ad" title="Page 34 — Shell Additional"></div>
+        <div class="col ad" title="Page 35 — Shell Additional"></div>
+        <!-- Essar (36-39) -->
+        <div class="col es" title="Page 36 — Essar Rider"></div>
+        <div class="col es" title="Page 37 — Essar Rider"></div>
+        <div class="col es" title="Page 38 — Essar Rider"></div>
+        <div class="col es" title="Page 39 — Essar Rider"></div>
+      </div>
+      <div class="page-map-axis">
+        <span>1</span><span>5</span><span>10</span><span>15</span><span>20</span><span>25</span><span>30</span><span>35</span><span>39</span>
+      </div>
+      <div class="page-map-legend">
+        <span><span class="sw" style="background: var(--part1);"></span>Part&nbsp;I — particulars (skipped)</span>
+        <span><span class="sw" style="background: var(--shellvoy);"></span>SHELLVOY 5 · 12 pp · <strong>38 / 44</strong> kept</span>
+        <span><span class="sw" style="background: var(--additional);"></span>Shell Additional · 18 pp · <strong>28 / 43</strong> kept</span>
+        <span><span class="sw" style="background: var(--essar);"></span>Essar Rider · 4 pp · <strong>21 / 22</strong> kept</span>
+      </div>
+    </div>
+
+    <div class="layouts" aria-label="Two layouts in Part II">
+      <div class="layout-mock">
+        <h4>SHELLVOY · two-column</h4>
+        <div class="mock-shellvoy">
+          <div class="mtitle">Condition of vessel</div>
+          <div class="mbody">Owners shall exercise due diligence to ensure that …</div>
+          <div class="mtitle">Cleanliness Of tanks</div>
+          <div class="mbody">Whilst loading, carrying and discharging the cargo the Master shall …</div>
+          <div class="mtitle">Voyage</div>
+          <div class="mbody">The vessel shall, with all convenient despatch …</div>
+        </div>
+      </div>
+      <div class="layout-mock">
+        <h4>Additional / Essar · inline</h4>
+        <div class="mock-inline">
+          <div class="row"><span class="anchor">1.</span><span class="ititle">Indemnity Clause</span><span class="ibody">If Charterers by telex, facsimile or other form of written communication …</span></div>
+          <div class="row"><span class="anchor">3.</span><span class="ititle">Insurance Clause</span><span class="ibody">Sub-clauses 1)–4) Oil Pollution / Civil Liability / Hull and Machinery / War Risk …</span></div>
+          <div class="row"><span class="anchor">4.</span><span class="ititle">Early Loading Clause</span><span class="ibody">Any time saved to be shared 50/50 …</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="note" style="margin-top: 24px;"><strong>Disambiguation —</strong> `id="1"` appears three times in Part&nbsp;II. The wire JSON uses prefixed ids (<code>shellvoy-1</code>, <code>additional-1</code>, <code>essar-1</code>) so the flat list stays collision-free.</div>
+  </section>
+
+  <section id="strike">
+    <h2><span class="num">04</span>Strike-through removal</h2>
+    <p class="intro">Negotiators physically strike out the boilerplate they reject; the replacement language sits next to it. Including struck text would silently change the contract. In this PDF, strikes are <strong>not</strong> a font feature — they are thin filled rectangles drawn over the glyphs (height ≈ 0.42 pt). A glyph is "struck" when its bbox centre lies inside one of those rectangles.</p>
+
+    <div class="strike-demo" aria-label="Strike-through removal example">
+      <div class="panel pdf">
+        <span class="panel-label">PDF — clause 6 line 118</span>
+        Dues … loaded or discharged, <span class="struck">and any taxes on freight whatsoever</span> shall be paid by Owners …
+      </div>
+      <div class="arrow">→</div>
+      <div class="panel json">
+        <span class="panel-label">clauses.json — shellvoy-6.text</span>
+        Dues … loaded or discharged, and shall be paid by Owners …
+      </div>
+    </div>
+
+    <div class="rules">
+      <div class="rule">
+        <h4>Whole-line vote</h4>
+        Drop a line only when its first printable glyph is struck <em>and</em> ≥ 50 % of the line is struck. Visible-first lines survive.
+      </div>
+      <div class="rule">
+        <h4>Word-level promotion</h4>
+        Any struck glyph inside a word → drop the whole word. Catches the orphan-suffix pattern where a strike rectangle ends mid-word.
+        <span class="glyphs">PDF:    [struck: <span style="text-decoration: line-through; color: var(--strike);">in</span>]demnity follows
+parser: word "indemnity" dropped
+JSON:   "… follows …"</span>
+      </div>
+      <div class="rule">
+        <h4>Sandwich rule</h4>
+        A clean-ish line tightly between two heavy-struck lines is dropped — surviving glyphs are debris from a partial strike rect, not real content.
+      </div>
+      <div class="rule">
+        <h4>Punctuation-led exception</h4>
+        If the visible tail of a mostly-struck line opens with <code>,</code> or <code>:</code>, keep it. A clean continuation is still content.
+      </div>
+    </div>
+  </section>
+
+  <section id="sample">
+    <h2><span class="num">05</span>A clause, rendered</h2>
+    <p class="intro">One entry from <code>clauses.json</code> — the rewritten <em>Cleanliness of tanks</em> whose original was struck and a bold replacement inserted.</p>
+
+    <article class="clause-card" id="sample-shellvoy-2">
+      <header>
+        <span class="clause-id">shellvoy-2</span>
+        <h3 class="clause-title">Cleanliness Of tanks</h3>
+      </header>
+      <div class="clause-body">
+        <p>Whilst loading, carrying and discharging the cargo the Master shall at all times keep the tanks, lines and pumps of the vessel always clean for the cargo. Unless otherwise agreed between Owners and Charterers the vessel shall present for loading with cargo tanks ready and subject to following paragraphs, if vessel fitted with Inert Gas System (IGS), fully inerted.</p>
+        <p>Charterers shall have the right to inspect vessel's tanks prior to loading AT THEIR TIME/EXPENSE … <a href="../../output/clauses.html#shellvoy-2">[full text in clauses.html]</a></p>
+      </div>
+    </article>
+  </section>
+
+  <section id="llm">
+    <h2><span class="num">06</span>LLM as verifier, never transcriber</h2>
+    <p class="intro">The deterministic parser writes every byte of <code>clauses.json</code>. The Azure-hosted LLM only reviews — flags suspicious boundaries (truncated, merged, out-of-order) as advisory warnings.</p>
+
+    <table class="section-table">
+      <thead><tr><th>Role</th><th>Default deployment</th><th>Endpoint</th><th>Input shape</th></tr></thead>
+      <tbody>
+        <tr><td>Verifier</td><td><code>DeepSeek-V4-Flash</code></td><td>Azure Foundry</td><td>HTML-tagged clauses, strict-JSON response</td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top: 14px; font-size: 14.5px; color: var(--ink-soft);">Switch deployments via <code>MARCURA_VERIFIER_MODEL</code> in <code>.env</code>; deployment names prefixed <code>deepseek</code>, <code>grok</code>, <code>mistral</code>, <code>llama</code>, or <code>cohere</code> are routed through Azure Foundry, the rest through Azure OpenAI. A verifier outage never breaks a deterministic extraction — the runner logs anomalies and returns normally.</p>
+
+    <div class="note"><strong>Current advisory output —</strong> three known false positives (<code>shellvoy-4</code>, <code>additional-1</code>, <code>additional-11</code>) where the deterministic parser correctly ends mid-sentence because the rest of the clause is struck out on the page. Each is documented and cross-referenced to <code>eval/ground_truth.md</code> in <a href="../architecture.md#llm-verifier">architecture.md</a>; a <em>new</em> flag would warrant a manual page-by-page check.</div>
+  </section>
+
+  <section id="eval">
+    <h2><span class="num">07</span>Evaluation</h2>
+    <p class="intro">Deterministic, no LLM. <code>make eval</code> runs the same gate CI runs — every check green on every commit.</p>
+
+    <div class="eval-summary">
+      <span><strong style="color: var(--ink);">25 of 25</strong> checks pass against a hand-curated golden file: counts, exact ordinal lists, frozen text on regression-prone clauses, "struck must be absent", "kept must be present", and "no embedded next-anchor leakage" — backed by a page-by-page manual ground truth at <code>eval/ground_truth.md</code>.</span>
+      <span class="big">25 / 25</span>
+    </div>
+  </section>
+
+  <section id="decisions">
+    <h2><span class="num">08</span>Trade-offs</h2>
+    <dl class="decisions">
+      <dt>Determinism &gt; cleverness</dt><dd>Every byte of <code>text</code> is byte-for-byte traceable to a glyph on the source page. A vision-only LLM pipeline would have been faster to write, riskier to ship.</dd>
+      <dt>Two parsers, not one</dt><dd>Two-column SHELLVOY and inline rider sections share zero geometry. Forcing a unified parser would have hurt readability with no fidelity gain.</dd>
+      <dt>Verifier is advisory</dt><dd>The LLM must not author text in a fidelity-critical legal pipeline. It judges what the parser produced; logs warnings; never raises.</dd>
+      <dt>Pydantic everywhere</dt><dd>One model story end-to-end (parser internals → wire JSON). No <code>@dataclass</code>; no parallel serialization paths.</dd>
+      <dt>Faithful, not opinionated</dt><dd>Visible glyphs go to JSON. Wholly-replaced clauses — title struck <em>and</em> body reduced to mid-word fragments — are dropped (21 in this corpus, enumerated in <code>eval/ground_truth.md</code>).</dd>
+      <dt>Markdown source, HTML showcase</dt><dd>The <code>docs/*.md</code> are the canonical source — agent-friendly, GitHub-friendly, diff-friendly. This page is a hand-crafted snapshot; no framework, single file.</dd>
+    </dl>
+  </section>
+
+  <section id="links">
+    <h2><span class="num">09</span>Where to look next</h2>
+    <p>
+      <a href="../../output/clauses.json">→ output/clauses.json</a> &nbsp;·&nbsp;
+      <a href="../../output/clauses.html">→ output/clauses.html</a> &nbsp;·&nbsp;
+      <a href="../architecture.md">architecture.md</a> &nbsp;·&nbsp;
+      <a href="../glossary.md">glossary.md</a> &nbsp;·&nbsp;
+      <a href="../development.md">development.md</a>
+    </p>
+  </section>
+
+  <footer class="colophon">
+    <span>Hand-crafted single-file HTML — no framework, no build step.</span>
+    <span><a href="https://github.com/blake-ds/marcura-charterparty">github.com/blake-ds/marcura-charterparty</a></span>
+  </footer>
+</div>
+</body>
+</html>
