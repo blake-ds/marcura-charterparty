@@ -75,7 +75,6 @@ class _LeftMarginLine(BaseModel):
 
 
 def parse(pages: tuple[Page, ...]) -> list[Clause]:
-    """Parse the SHELLVOY pages into a list of clauses."""
     anchors = _find_anchors(pages)
     titles = _attach_titles(pages, anchors)
 
@@ -127,15 +126,9 @@ def _left_margin_lines(page: Page) -> list[_LeftMarginLine]:
 def _attach_titles(pages: tuple[Page, ...], anchors: list[_Anchor]) -> list[str]:
     """Two-pass: greedy own-row + below-row, then orphan block fall-through."""
     titles: list[str] = ["" for _ in anchors]
-    if not anchors:
-        return titles
-
-    by_page_anchors: dict[int, list[tuple[int, _Anchor]]] = {}
-    for index, anchor in enumerate(anchors):
-        by_page_anchors.setdefault(anchor.page, []).append((index, anchor))
-
+    indexed = list(enumerate(anchors))
     for page in pages:
-        page_anchors = by_page_anchors.get(page.number, [])
+        page_anchors = [(i, a) for i, a in indexed if a.page == page.number]
         if not page_anchors:
             continue
         page_lines = _left_margin_lines(page)

@@ -15,19 +15,29 @@ from collections.abc import Iterable
 from importlib import resources
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
 
 from extractor.models import Clause, Section
 from extractor.pipeline import extract_clauses
 
 
 class EvalReport(BaseModel):
-    """Aggregate of every eval check that ran."""
+    """Aggregate of every eval check that ran.
+
+    Check names must be unique — duplicate :func:`add` calls would silently
+    mask a regression by overwriting the prior result. We enforce one-shot
+    semantics on insert.
+    """
 
     passed: list[str] = Field(default_factory=list)
     failed: list[tuple[str, str]] = Field(default_factory=list)
 
+    _seen: set[str] = PrivateAttr(default_factory=set)
+
     def add(self, name: str, *, ok: bool, detail: str = "") -> None:
+        if name in self._seen:
+            raise ValueError(f"duplicate eval check: {name!r}")
+        self._seen.add(name)
         if ok:
             self.passed.append(name)
         else:
@@ -46,7 +56,6 @@ class EvalReport(BaseModel):
 
 
 def run_eval(pdf_path: Path, golden_path: Path | None = None) -> EvalReport:
-    """Extract clauses, then check every assertion in the golden file."""
     golden = _load_golden(golden_path)
     clauses = extract_clauses(pdf_path)
 

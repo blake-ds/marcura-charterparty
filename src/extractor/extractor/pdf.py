@@ -11,9 +11,10 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from pathlib import Path
+from typing import Self
 
 import pymupdf
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 # Empirical thresholds derived from the SHELLVOY 5 sample. The strike rectangles
 # in this corpus are ≈0.42pt tall and span the full strike line; anything taller
@@ -24,20 +25,24 @@ _STRIKE_Y_TOLERANCE = 1.0  # how far above/below the rect a struck glyph may sit
 _STRIKE_X_TOLERANCE = 0.5
 
 
-class _Frozen(BaseModel):
+class _Bbox(BaseModel):
+    """Axis-aligned bbox in PDF user space; x0<=x1 and y0<=y1 are invariants."""
+
     model_config = ConfigDict(frozen=True)
 
-
-class Char(_Frozen):
-    """A single glyph with its page geometry and strike-through verdict."""
-
-    text: str
     x0: float
     y0: float
     x1: float
     y1: float
-    page: int  # 1-indexed
-    struck: bool
+
+    @model_validator(mode="after")
+    def _bbox_order(self) -> Self:
+        if self.x1 < self.x0 or self.y1 < self.y0:
+            raise ValueError(
+                "bbox must satisfy x0<=x1 and y0<=y1; got "
+                f"({self.x0},{self.y0})-({self.x1},{self.y1})"
+            )
+        return self
 
     @property
     def x_mid(self) -> float:
@@ -48,44 +53,31 @@ class Char(_Frozen):
         return (self.y0 + self.y1) / 2
 
 
-class StrikeRect(_Frozen):
-    """The on-page rectangle that strikes through one or more glyphs."""
-
-    x0: float
-    y0: float
-    x1: float
-    y1: float
-
-
-class Word(_Frozen):
-    """A whitespace-delimited token, with bbox and an aggregate strike verdict."""
-
+class Char(_Bbox):
     text: str
-    x0: float
-    y0: float
-    x1: float
-    y1: float
-    page: int
+    page: int = Field(ge=1, description="1-indexed PDF page number.")
     struck: bool
 
-    @property
-    def x_mid(self) -> float:
-        return (self.x0 + self.x1) / 2
 
-    @property
-    def y_mid(self) -> float:
-        return (self.y0 + self.y1) / 2
+class StrikeRect(_Bbox):
+    pass
 
 
-class Page(_Frozen):
-    """Everything the parser needs from one rendered page."""
+class Word(_Bbox):
+    text: str
+    page: int = Field(ge=1, description="1-indexed PDF page number.")
+    struck: bool
 
-    number: int  # 1-indexed
+
+class Page(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    number: int = Field(ge=1, description="1-indexed PDF page number.")
     chars: tuple[Char, ...]
     words: tuple[Word, ...]
     strikes: tuple[StrikeRect, ...]
-    width: float
-    height: float
+    width: float = Field(gt=0)
+    height: float = Field(gt=0)
 
     def visible_chars(self) -> tuple[Char, ...]:
         return tuple(c for c in self.chars if not c.struck)
@@ -95,7 +87,6 @@ class Page(_Frozen):
 
 
 def load_pages(pdf_path: Path) -> tuple[Page, ...]:
-    """Read every page of ``pdf_path`` into ``Page`` records."""
     doc = pymupdf.open(str(pdf_path))
     try:
         return tuple(_load_page(doc[i], page_number=i + 1) for i in range(doc.page_count))
@@ -140,36 +131,31 @@ def line_vote_filter(chars: Iterable[Char]) -> list[Char]:
     for char in chars:
         by_line.setdefault((char.page, round(char.y_mid)), []).append(char)
 
-    lines = sorted(by_line.items())  # ((page, y), [chars]) sorted globally
+    # Sort each line once, here — downstream passes consume the same order.
+    lines: list[tuple[tuple[int, int], list[Char]]] = [
+        (key, sorted(line_chars, key=lambda c: c.x0)) for key, line_chars in sorted(by_line.items())
+    ]
 
     unsafe = [_line_is_unsafe(line_chars) for _, line_chars in lines]
     _apply_sandwich(lines, unsafe)
 
     kept: list[Char] = []
     for is_unsafe, (_, line_chars) in zip(unsafe, lines, strict=True):
-        if is_unsafe:
-            continue
-        kept.extend(_keep_clean_words(sorted(line_chars, key=lambda c: c.x0)))
+        if not is_unsafe:
+            kept.extend(_keep_clean_words(line_chars))
     return kept
 
 
 def _line_is_unsafe(line_chars: list[Char]) -> bool:
-    sorted_chars = sorted(line_chars, key=lambda c: c.x0)
-    printable = [c for c in sorted_chars if c.text.strip()]
-    if not printable:
-        return False  # blank line is harmless
-    if not printable[0].struck:
-        return False  # visible-first → never unsafe
+    printable = [c for c in line_chars if c.text.strip()]
+    if not printable or not printable[0].struck:
+        return False  # blank line, or visible-first → never unsafe
     struck_ratio = sum(1 for c in printable if c.struck) / len(printable)
     if struck_ratio <= _LINE_VOTE_STRIKE_RATIO:
         return False
     # Punctuation-led exception: visible tail begins with `,` / `:` etc.
-    first_visible_nonspace = next(
-        (c for c in sorted_chars if not c.struck and c.text.strip()), None
-    )
-    if first_visible_nonspace is None:
-        return True
-    return first_visible_nonspace.text.isalnum()
+    first_visible = next((c for c in printable if not c.struck), None)
+    return first_visible is None or first_visible.text.isalnum()
 
 
 def _apply_sandwich(lines: list[tuple[tuple[int, int], list[Char]]], unsafe: list[bool]) -> None:
@@ -184,21 +170,27 @@ def _apply_sandwich(lines: list[tuple[tuple[int, int], list[Char]]], unsafe: lis
     """
     heavy = [_line_heavy_struck(line_chars) for _, line_chars in lines]
     seed = [a or b for a, b in zip(unsafe, heavy, strict=True)]
-    # Two passes lets sandwich propagate through a tight block of fragments.
     for _ in range(2):
         for index in range(1, len(lines) - 1):
             if unsafe[index]:
                 continue
-            (cur_page, cur_y), _ = lines[index]
-            (prev_page, prev_y), _ = lines[index - 1]
-            (next_page, next_y), _ = lines[index + 1]
-            if cur_page != prev_page or cur_page != next_page:
+            if not _sandwiched(lines, index, seed):
                 continue
-            if (cur_y - prev_y) > _LINE_SANDWICH_GAP or (next_y - cur_y) > _LINE_SANDWICH_GAP:
-                continue
-            if seed[index - 1] and seed[index + 1]:
-                unsafe[index] = True
-                seed[index] = True
+            unsafe[index] = True
+            seed[index] = True
+
+
+def _sandwiched(
+    lines: list[tuple[tuple[int, int], list[Char]]], index: int, seed: list[bool]
+) -> bool:
+    (cur_page, cur_y), _ = lines[index]
+    (prev_page, prev_y), _ = lines[index - 1]
+    (next_page, next_y), _ = lines[index + 1]
+    if cur_page != prev_page or cur_page != next_page:
+        return False
+    if (cur_y - prev_y) > _LINE_SANDWICH_GAP or (next_y - cur_y) > _LINE_SANDWICH_GAP:
+        return False
+    return seed[index - 1] and seed[index + 1]
 
 
 def _line_heavy_struck(line_chars: list[Char]) -> bool:
@@ -222,8 +214,11 @@ def _line_heavy_struck(line_chars: list[Char]) -> bool:
 
 
 def _keep_clean_words(line_chars: list[Char]) -> list[Char]:
-    """Return only fully-visible words on a line (drop partial-strike fragments)."""
-    line_chars = sorted(line_chars, key=lambda c: c.x0)
+    """Return only fully-visible words on a line (drop partial-strike fragments).
+
+    Callers must pass ``line_chars`` already sorted by ``x0``; we don't re-sort
+    so the call site can do it once and feed every pass.
+    """
     out: list[Char] = []
     word_buffer: list[Char] = []
     for char in line_chars:

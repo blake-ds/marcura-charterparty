@@ -9,7 +9,9 @@ header is owned by the current section.
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict
+from typing import Self
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from extractor.models import Section
 from extractor.pdf import Page
@@ -29,8 +31,16 @@ class SectionRange(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     section: Section
-    page_start: int
-    page_end: int
+    page_start: int = Field(ge=1)
+    page_end: int = Field(ge=1)
+
+    @model_validator(mode="after")
+    def _page_order(self) -> Self:
+        if self.page_end < self.page_start:
+            raise ValueError(
+                f"page_end ({self.page_end}) must be >= page_start ({self.page_start})"
+            )
+        return self
 
     def contains(self, page_number: int) -> bool:
         return self.page_start <= page_number <= self.page_end

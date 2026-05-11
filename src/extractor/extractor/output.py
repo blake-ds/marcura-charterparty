@@ -16,16 +16,22 @@ from pathlib import Path
 
 from extractor.models import Clause
 
+# Display label + canonical order — Part II's three boilerplate documents in
+# the same sequence they appear in the source PDF.
+_SECTION_DISPLAY: tuple[tuple[str, str], ...] = (
+    ("shellvoy", "SHELLVOY 5 — standard clauses"),
+    ("additional", "Shell Additional Clauses (Feb 1999)"),
+    ("essar", "Essar Rider Clauses (Dec 2006)"),
+)
+
 
 def write_json(clauses: list[Clause], path: Path) -> None:
-    """Write the spec-compliant JSON file."""
     payload = [c.to_spec_dict() for c in clauses]
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
 def write_html(clauses: list[Clause], path: Path) -> None:
-    """Render a self-contained, navigable HTML view of the clauses."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(_render_html(clauses), encoding="utf-8")
 
@@ -35,26 +41,20 @@ def _render_html(clauses: list[Clause]) -> str:
     for clause in clauses:
         by_section.setdefault(clause.section.value, []).append(clause)
 
-    section_titles = {
-        "shellvoy": "SHELLVOY 5 — standard clauses",
-        "additional": "Shell Additional Clauses (Feb 1999)",
-        "essar": "Essar Rider Clauses (Dec 2006)",
-    }
-
     section_blocks: list[str] = []
     toc_blocks: list[str] = []
-    for section_key in ("shellvoy", "additional", "essar"):
+    for section_key, section_title in _SECTION_DISPLAY:
         items = by_section.get(section_key, [])
         if not items:
             continue
         toc_blocks.append(
-            f'<li><a href="#{section_key}">{html.escape(section_titles[section_key])} '
+            f'<li><a href="#{section_key}">{html.escape(section_title)} '
             f'<span class="count">({len(items)})</span></a></li>'
         )
         clause_html = "\n".join(_render_clause(c) for c in items)
         section_blocks.append(
             f'<section id="{section_key}">\n'
-            f"  <h2>{html.escape(section_titles[section_key])} "
+            f"  <h2>{html.escape(section_title)} "
             f'<span class="count">{len(items)} clauses</span></h2>\n'
             f"  {clause_html}\n"
             f"</section>"

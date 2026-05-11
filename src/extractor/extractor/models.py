@@ -9,21 +9,18 @@ adapter :func:`to_spec_dict` strips those down to the README-mandated triple
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Self
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class Section(StrEnum):
-    """One of the three numbering ranges concatenated inside Part II."""
-
     SHELLVOY = "shellvoy"
     ADDITIONAL = "additional"
     ESSAR = "essar"
 
 
 class Clause(BaseModel):
-    """A single extracted clause, with full provenance."""
-
     section: Section
     ordinal: int = Field(ge=1, description="The N. as printed in the source PDF.")
     title: str
@@ -35,6 +32,14 @@ class Clause(BaseModel):
     @classmethod
     def _strip_whitespace(cls, value: str) -> str:
         return value.strip()
+
+    @model_validator(mode="after")
+    def _page_order(self) -> Self:
+        if self.page_end < self.page_start:
+            raise ValueError(
+                f"page_end ({self.page_end}) must be >= page_start ({self.page_start})"
+            )
+        return self
 
     @property
     def id(self) -> str:

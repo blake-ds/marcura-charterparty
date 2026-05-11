@@ -62,7 +62,6 @@ class _Anchor(BaseModel):
 
 
 def parse(pages: tuple[Page, ...], section: Section) -> list[Clause]:
-    """Parse inline-layout pages (Additional / Rider) into clauses."""
     anchors = _find_anchors(pages)
     clauses: list[Clause] = []
     for index, anchor in enumerate(anchors):
