@@ -1,0 +1,74 @@
+[project]
+name = "marcura-charterparty"
+version = "0.1.0"
+description = "Charter party document parser — Marcura AI Engineer challenge"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+  "extractor",
+  "llm",
+  "pre-commit",
+  "pytest",
+  "pytest-cov",
+  "ruff",
+  "ty",
+]
+
+[tool.uv.sources]
+extractor = { workspace = true }
+llm = { workspace = true }
+
+[tool.uv.workspace]
+members = [
+  "src/extractor",
+  "src/llm",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["src/extractor/tests", "src/llm/tests"]
+addopts = "--import-mode=importlib"
+markers = [
+  "integration: hits external services (Azure LLM); deselect with -m 'not integration'",
+]
+filterwarnings = [
+  # PyMuPDF SWIG bindings emit a Python 3.13 deprecation that we can't fix.
+  "ignore:builtin type Swig.*has no __module__ attribute:DeprecationWarning",
+]
+
+[tool.ruff]
+line-length = 100
+extend-include = ["*.ipynb"]
+
+[tool.ruff.lint]
+extend-select = [
+  "I",     # isort
+  "ANN",   # type annotations
+  "F",     # pyflakes
+  "E", "W",# pycodestyle
+  "N",     # pep8-naming
+  "UP",    # pyupgrade
+  "B",     # bugbear
+  "C4",    # comprehensions
+  "SIM",   # simplify
+  "RUF",   # ruff-specific
+  "PERF",  # performance
+  "PT",    # pytest
+  "RET",   # return statements
+  "TRY",   # exception handling
+]
+ignore = [
+  "ANN002", # missing type for *args
+  "ANN003", # missing type for **kwargs
+  "ANN401", # typing.Any
+  "TRY003", # long exception messages
+  "RUF001", # ambiguous unicode in identifiers
+  "RUF002", # ambiguous unicode in docstrings (we use em/en dashes intentionally)
+  "RUF003", # ambiguous unicode in comments
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["ANN"]
+"**/__init__.py" = ["F401"]
+
+[tool.ty.environment]
+root = ["./src/extractor", "./src/llm"]

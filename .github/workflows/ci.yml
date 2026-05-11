@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: lint + types + tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0  # gitleaks needs full history
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Sync workspace
+        run: uv sync --all-packages --all-extras
+
+      - name: Lint (ruff check + format)
+        run: make lint
+
+      - name: Type-check (ty)
+        run: make type-check
+
+      - name: Secret scan (gitleaks)
+        # We invoke gitleaks via pre-commit (same hook the developer runs
+        # locally) instead of gitleaks-action: the action computes a git-log
+        # range that fails on a fresh repo whose first commit is also the
+        # branch root.
+        run: uv run pre-commit run gitleaks --all-files
+
+      - name: Unit tests
+        run: make test
+
+      - name: Eval (deterministic correctness)
+        run: make eval
+
+  integration:
+    name: integration tests (Azure)
+    runs-on: ubuntu-latest
+    if: contains(github.event.head_commit.message, '[run-integration]') || github.event_name == 'workflow_dispatch'
+    needs: quality
+    env:
+      MARCURA_AZURE_OPENAI_ENDPOINT: ${{ secrets.MARCURA_AZURE_OPENAI_ENDPOINT }}
+      MARCURA_AZURE_OPENAI_API_KEY: ${{ secrets.MARCURA_AZURE_OPENAI_API_KEY }}
+      MARCURA_AZURE_OPENAI_API_VERSION: ${{ secrets.MARCURA_AZURE_OPENAI_API_VERSION }}
+      MARCURA_AZURE_FOUNDRY_ENDPOINT: ${{ secrets.MARCURA_AZURE_FOUNDRY_ENDPOINT }}
+      MARCURA_AZURE_FOUNDRY_API_KEY: ${{ secrets.MARCURA_AZURE_FOUNDRY_API_KEY }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Sync workspace
+        run: uv sync --all-packages --all-extras
+      - name: Run integration tests
+        run: make test_integration
