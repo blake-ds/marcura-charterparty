@@ -37,8 +37,9 @@ The source PDF encodes strike-through as **thin filled rectangles** (`re` operat
 
 Char-level marking is the primary filter, but a strike rectangle that ends mid-word leaves orphan glyphs visible (an `indemnity` line covered up to x=180 leaves "demnity" rendered, leaking into the JSON). The two-column SHELLVOY parser uses `pdf.line_vote_filter`; the inline rider parser uses a stricter boundary-aware filter because whole struck clauses still need to delimit neighboring clauses.
 
-- **Whole-line vote.** If more than 50% of a line's printable glyphs are struck, the entire line is dropped — kills orphan remnants of fully-replaced lines.
-- **Inline body guard.** In rider sections, a line is dropped when it is fully struck, when its leading printable glyph is struck and the remaining visible text starts like a word, or when it is a clean-looking continuation sandwiched inside a struck block. Mixed amendment lines keep their visible replacement text.
+- **Position-aware whole-line vote.** A line is dropped only when *both* its left-most printable glyph is struck *and* the line is more than 50% struck overall. The "first printable visible" exception keeps lines like `for the duration of this Charter. [STRUCK Owners shall furnish H&M policy cover note.]` where the visible content opens the line. Lines that begin with struck content and are still mostly struck (`[STRUCK other than the berth, time on passage to such other place, fro]m disconnecting of hoses to ...`) are dropped — the surviving glyphs are mid-sentence debris, not a real continuation.
+- **Word-level promotion.** On the surviving lines, a word containing *any* struck glyph is treated as fully struck. This catches the indemnity → "demnity" / `Whether` → "ther" pattern where a strike rectangle ends mid-word.
+- **Punctuation-led exception.** When the visible content of a mostly-struck line opens with punctuation (a comma or colon continuing a list — `[STRUCK additional freight, indemnity claims, insurance], Worldscale charges / dues;`) the line is kept; the visible tail is a clean continuation, not a fragment.
 
 </section>
 <section id="sections">
@@ -83,7 +84,7 @@ Switch deployments by editing `MARCURA_VERIFIER_MODEL` in `.env`; deployments wh
 
 Deterministic, no LLM. `make eval` compares parser output against a hand-curated packaged golden file covering counts, exact ordinal lists, key clauses, and known strike-through traps. Assertions:
 
-1. Clause **count per section** matches the expected ordinals exactly (38 / 28 / 21 in this corpus, after dropping fragment-only artefacts of fully-struck clauses).
+1. Clause **count per section** matches the expected ordinals exactly (38 / 36 / 21 in this corpus, after dropping the few clauses whose entire visible content was reduced to a mid-word fragment).
 2. **Order is monotonically increasing** within each section.
 3. **Known struck snippets** (e.g. `"Has tanks coated as follows"`) do not appear in any `text`.
 4. **Known surviving snippets** (e.g. the bold replacement of clause 2) do appear.

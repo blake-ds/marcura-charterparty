@@ -109,19 +109,24 @@ _LINE_VOTE_STRIKE_RATIO = 0.5
 def line_vote_filter(chars: Iterable[Char]) -> list[Char]:
     """Drop fragments left over from partial strike rectangles.
 
-    Two cleanup passes operate on every glyph (struck + visible) for a candidate
-    body region:
+    Three cleanup passes operate on every glyph (struck + visible) for a
+    candidate body region:
 
-    1. **Whole-line vote.** If more than :data:`_LINE_VOTE_STRIKE_RATIO` of a
-       line's printable glyphs are struck, discard the line — kills orphan
-       remnants of fully-replaced lines.
+    1. **Position-aware whole-line vote.** A line is dropped only if its
+       left-most printable glyph is struck *and* the line is more than
+       :data:`_LINE_VOTE_STRIKE_RATIO` struck overall. The "first printable
+       visible" exception preserves lines like ``for the duration of this
+       Charter. [STRUCK Owners shall furnish H & M policy cover note.]`` where
+       the visible content begins the line and the replacement was struck out
+       further right. Lines that begin with struck content and are mostly
+       struck (``[STRUCK ... ] m disconnecting of hoses to ...``) are dropped.
     2. **Word-level promotion.** On the surviving lines, a word that has *any*
        struck glyph in it is treated as fully struck. This catches the
        indemnity → "demnity" / company → "y" pattern where a strike rectangle
        ends mid-word and the trailing chars would otherwise leak through.
-
-    Whitespace glyphs are emitted only if visible — that preserves spacing
-    between kept words while not dragging in struck spaces.
+    3. **Whitespace fidelity.** A whitespace glyph is emitted only when it
+       was visible in the PDF — that preserves spacing between kept words
+       without dragging in struck spaces.
     """
     by_line: dict[tuple[int, int], list[Char]] = {}
     for char in chars:
@@ -129,12 +134,24 @@ def line_vote_filter(chars: Iterable[Char]) -> list[Char]:
 
     kept: list[Char] = []
     for line_chars in by_line.values():
-        printable = [c for c in line_chars if c.text.strip()]
+        sorted_chars = sorted(line_chars, key=lambda c: c.x0)
+        printable = [c for c in sorted_chars if c.text.strip()]
         if printable:
             struck_ratio = sum(1 for c in printable if c.struck) / len(printable)
-            if struck_ratio > _LINE_VOTE_STRIKE_RATIO:
-                continue
-        kept.extend(_keep_clean_words(line_chars))
+            if printable[0].struck and struck_ratio > _LINE_VOTE_STRIKE_RATIO:
+                # Mostly-struck line starting with struck content. The visible
+                # portion is suspect — but if it opens with punctuation (a
+                # comma or colon continuing a list, e.g. ``[STRUCK item, item],
+                # Worldscale charges / dues;``) the visible side is a clean
+                # tail, not a mid-word fragment. Punctuation-led visible
+                # content is kept.
+                first_visible_nonspace = next(
+                    (c for c in sorted_chars if not c.struck and c.text.strip()),
+                    None,
+                )
+                if first_visible_nonspace is None or first_visible_nonspace.text.isalnum():
+                    continue
+        kept.extend(_keep_clean_words(sorted_chars))
     return kept
 
 

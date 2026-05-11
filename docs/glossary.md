@@ -39,6 +39,24 @@ Maritime law and PDF-parsing terms used throughout the docs and code. Markdown h
 <dt>Bill of lading (B/L)</dt>
 <dd>Document the master signs acknowledging the cargo onboard; doubles as title to the goods in the international cargo trade. Several Part II clauses regulate how the master must (or must not) issue them.</dd>
 
+<dt>Deadfreight</dt>
+<dd>Penalty paid when charterers do not load the full cargo they contracted for. They pay <em>as if</em> the vessel had been fully loaded. SHELLVOY clause 8 is the deadfreight clause.</dd>
+
+<dt>Notice of readiness (NOR)</dt>
+<dd>Formal notice from the master to the charterers that the vessel has arrived and is ready to load or discharge. Once tendered (and after any contractual grace period), the laytime clock starts. SHELLVOY clause 13 governs it.</dd>
+
+<dt>ETA</dt>
+<dd>Estimated Time of Arrival. Owners are obliged by the charter to keep charterers continuously informed; SHELLVOY clause 28 used to require formal ETA radio messages.</dd>
+
+<dt>Ballast</dt>
+<dd>Sea water taken into a tanker's cargo (or dedicated ballast) tanks to stabilise it when sailing empty. The clauses regulate when ballasting may be done concurrently with discharge — see Additional clause 32.</dd>
+
+<dt>P&amp;I Club</dt>
+<dd>"Protection &amp; Indemnity" — a mutual insurance association covering an owner's third-party liabilities (cargo loss/damage, pollution, crew claims, etc.). Membership is required by most charter parties; Part&nbsp;I lists the vessel's P&amp;I club.</dd>
+
+<dt>TOVALOP / ITOPF</dt>
+<dd>The old Tanker Owners' Voluntary Agreement concerning Liability for Oil Pollution, replaced over time by the International Tanker Owners Pollution Federation (ITOPF) framework and conventions. SHELLVOY clause 41 references it.</dd>
+
 </dl>
 
 ## Technical

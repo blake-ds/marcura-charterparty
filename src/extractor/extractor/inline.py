@@ -27,7 +27,7 @@ from collections.abc import Iterable
 from pydantic import BaseModel, ConfigDict
 
 from extractor.models import Clause, Section
-from extractor.pdf import Char, Page, Word
+from extractor.pdf import Char, Page, Word, line_vote_filter
 from extractor.text import chars_to_text
 
 _NUMBER_RE = re.compile(r"^(\d{1,3})\.?$")
@@ -222,7 +222,18 @@ def _looks_like_heading(title: str) -> bool:
 def _collect_body_chars(
     pages: tuple[Page, ...], anchor: _Anchor, end_page: int, end_y: float
 ) -> list[Char]:
-    """All body glyphs (struck + visible) in the clause's y-range; strike-filtered."""
+    """All body glyphs (struck + visible) in the clause's y-range; line+word filtered.
+
+    Uses the same :func:`pdf.line_vote_filter` as the SHELLVOY parser: whole-line
+    vote (>70% struck → drop the line) plus word-level promotion (any struck
+    glyph in a word → drop the whole word). The previous bespoke inline filter
+    was correct on indemnity-style fragments but over-aggressive on lines whose
+    *first printable char* was struck — it dropped lines like
+    ``[STRUCK B.Flush] pumps and lines including decks lines, manifolds, drop
+    lines and any other lines connected`` where the visible content is a real
+    new word after a whitespace gap. The unified word-level filter keeps the
+    visible content of those lines and still throws away mid-word fragments.
+    """
     candidates: list[Char] = []
     for page in pages:
         if page.number < anchor.page or page.number > end_page:
@@ -233,79 +244,7 @@ def _collect_body_chars(
             if not _within_clause_range(char, anchor, end_page, end_y):
                 continue
             candidates.append(char)
-    return _filter_inline_body(candidates)
-
-
-def _filter_inline_body(chars: list[Char]) -> list[Char]:
-    """Keep clean visual lines and discard strike-through debris.
-
-    A mostly struck line or a line whose leading word was struck is unsafe: the
-    remaining visible text is often a tail such as "demnity". Low-level edits in
-    the middle of a line are kept (e.g. ``ninety (90)`` replaced by ``120``).
-    One extra pass drops a clean-looking line when it is sandwiched between
-    struck lines in the same tight block; those are continuation lines of a
-    struck paragraph.
-    """
-    lines = _lines(chars)
-    if not lines:
-        return []
-
-    unsafe = [_line_has_strike(line_chars) for _, line_chars in lines]
-    for index, ((page, y), _) in enumerate(lines):
-        prev_tight = (
-            index > 0 and lines[index - 1][0][0] == page and y - lines[index - 1][0][1] <= 16
-        )
-        next_tight = (
-            index + 1 < len(lines)
-            and lines[index + 1][0][0] == page
-            and lines[index + 1][0][1] - y <= 16
-        )
-        sandwiched = prev_tight and next_tight and unsafe[index - 1] and unsafe[index + 1]
-        if not unsafe[index] and sandwiched:
-            unsafe[index] = True
-
-    kept: list[Char] = []
-    for keep_out, (_, line_chars) in zip(unsafe, lines, strict=True):
-        if keep_out:
-            continue
-        kept.extend(_visible_chars_for_kept_line(line_chars))
-    return kept
-
-
-def _visible_chars_for_kept_line(chars: list[Char]) -> list[Char]:
-    visible = [c for c in chars if not c.struck]
-    printable = [c for c in chars if c.text.strip()]
-    if not visible or not printable or not printable[0].struck:
-        return visible
-
-    first_word_index = next(
-        (index for index, char in enumerate(visible) if char.text.isalnum()),
-        None,
-    )
-    return visible[first_word_index:] if first_word_index is not None else []
-
-
-def _line_has_strike(chars: list[Char]) -> bool:
-    printable = [c for c in chars if c.text.strip()]
-    if not printable:
-        return False
-    visible = "".join(c.text for c in chars if not c.struck).strip()
-    if not visible:
-        return True
-    visible_alnum = [ch for ch in visible if ch.isalnum()]
-    if not visible_alnum:
-        return True
-    if sum(c.struck for c in printable) / len(printable) > 0.85 and len(visible_alnum) <= 2:
-        return True
-    first_visible = next((ch for ch in visible if not ch.isspace()), "")
-    return bool(printable[0].struck and first_visible.isalnum())
-
-
-def _lines(chars: list[Char]) -> list[tuple[tuple[int, int], list[Char]]]:
-    by_line: dict[tuple[int, int], list[Char]] = {}
-    for char in chars:
-        by_line.setdefault((char.page, round(char.y_mid)), []).append(char)
-    return [(key, sorted(value, key=lambda c: c.x0)) for key, value in sorted(by_line.items())]
+    return line_vote_filter(candidates)
 
 
 def _within_clause_range(char: Char, anchor: _Anchor, end_page: int, end_y: float) -> bool:

@@ -25,14 +25,14 @@ def clauses():
 
 
 def test_total_count(clauses) -> None:
-    assert len(clauses) == 87
+    assert len(clauses) == 95
 
 
 def test_section_counts(clauses) -> None:
     counts = {s.value: 0 for s in Section}
     for c in clauses:
         counts[c.section.value] += 1
-    assert counts == {"shellvoy": 38, "additional": 28, "essar": 21}
+    assert counts == {"shellvoy": 38, "additional": 36, "essar": 21}
 
 
 def test_ids_unique_and_prefixed(clauses) -> None:
@@ -109,14 +109,41 @@ def test_essar_16_single_line_clause_kept(clauses) -> None:
 
 
 def test_strike_fragments_do_not_leak_from_additional_clauses(clauses) -> None:
+    """Mid-word and structural fragments from struck content must not appear.
+
+    Note: ``"Legal proceedings have been commenced against Owners"`` is *not*
+    on this list. Its line is only ~2% struck (just the ``b)`` prefix), so it
+    is faithful visible text from the PDF, not a strike-through fragment.
+    """
     all_text = " ".join(c.text for c in clauses)
     forbidden = (
         "that vessel will not exceed a maximum freeboard",
         "Freight payment Clause 5",
         "operations in Sydney during the hours of darkness",
-        "Legal proceedings have been commenced against Owners",
+        "disconnecting of hoses to Recommence",
+        ", , Worldscale",
     )
     assert [fragment for fragment in forbidden if fragment in all_text] == []
+
+
+def test_recovered_additional_clauses_have_substance(clauses) -> None:
+    """Eight clauses heavily edited by the negotiator now keep their visible body."""
+    by_id = {c.id: c for c in clauses}
+    expected_phrases = {
+        "additional-12": "to both Charterers and Owners within 24 hours of fixture being concluded",
+        "additional-20": "pumps and lines including decks lines, manifolds",
+        "additional-31": "using the Charter speed in the Speed Clause and Bunker Consumption",
+        "additional-32": "maintaining double valve segregation at all time",
+        "additional-33": "such a protest has been made with a copy of the protest",
+        "additional-34": "vessel complies with all the Canadian Oil Spill response regulations",
+        "additional-36": "in vessel deballasting at Sidi Kerir",
+    }
+    for clause_id, phrase in expected_phrases.items():
+        clause = by_id.get(clause_id)
+        assert clause is not None, f"{clause_id} missing"
+        assert phrase in clause.text, (
+            f"{clause_id} missing {phrase!r}: text starts {clause.text[:120]!r}"
+        )
 
 
 def test_partial_strike_visible_replacements_are_kept(clauses) -> None:

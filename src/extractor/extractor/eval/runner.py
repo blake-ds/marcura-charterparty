@@ -250,18 +250,20 @@ def _check_kept_present(clauses: list[Clause], golden: dict, report: EvalReport)
 
 
 def _check_text_starts_clean(clauses: list[Clause], report: EvalReport) -> None:
-    """A clause's text must start with a plausible sentence opener.
+    """A *titled* clause's text must start with a plausible sentence opener.
 
-    Mid-word fragments left over from partial strike rectangles look like
-    text that begins with a lowercase letter. Real clauses begin with
-    upper-case words, parenthesised sub-points, digits, or quotes.
+    Mid-word fragments left over from partial strike rectangles look like text
+    that begins with a lowercase letter. We only enforce this on clauses that
+    have a non-empty title: heavily-struck clauses with an empty title (the
+    heading itself was struck out, only the body's surviving middle remains)
+    legitimately begin with whatever the strike rectangle let through.
     """
     pattern = re.compile(r'^[A-Z0-9("“‘]')
-    bad = [c.id for c in clauses if c.text and not pattern.match(c.text)]
+    bad = [c.id for c in clauses if c.title and c.text and not pattern.match(c.text)]
     report.add(
-        "text starts with sentence opener",
+        "titled clauses start with sentence opener",
         ok=not bad,
-        detail=f"clauses starting with a non-opener char: {bad}",
+        detail=f"titled clauses with non-opener start: {bad}",
     )
 
 
