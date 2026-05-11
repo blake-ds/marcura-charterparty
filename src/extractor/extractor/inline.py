@@ -4,7 +4,7 @@ Unlike SHELLVOY there is no left-margin title column. Each clause begins with
 ``N.`` flush against the left edge (x ≈ 50pt) followed by the title on the
 same line; the body starts on the following line.
 
-Two real-world wrinkles in this corpus:
+Three real-world wrinkles in this corpus:
 
 1. The clause number is sometimes typeset as the bare digit followed by the
    period glued to the next word (``22 .BILL OF LADING …``). We accept both
@@ -38,6 +38,17 @@ _CLAUSE_NUMBER_X_MAX = 110.0
 _BODY_X_MIN = 30.0
 _BODY_X_MAX = 580.0
 _TITLE_LINE_TOLERANCE = 5.0  # glyphs within this many points of the anchor are part of the title
+
+# Thresholds for :func:`_is_wholly_replaced` — the "Canada Clause / Sidi Kerir
+# / Rotterdam" pattern where only the bare ``N.`` is visible on the anchor row
+# and the body region is dominated by heavy-struck lines.
+_ANCHOR_ROW_Y_TOLERANCE = 5.0  # glyphs within this many pts of the anchor row
+_ANCHOR_TITLE_X_MIN = 75.0  # glyphs past this x are title content (numbers live at x ≈ 50-65)
+_ANCHOR_MIN_PRINTABLE = 3  # too few glyphs on the anchor row to judge title-struck reliably
+_ANCHOR_STRUCK_RATIO = 0.6  # anchor row must be at least this struck to be "title struck"
+_BODY_LINE_HEAVY_RATIO = 0.75  # per-line struck ratio that marks the line "heavy"
+_BODY_MIN_NONEMPTY_LINES = 2  # single-line bodies fall through to single-line clause logic
+_BODY_HEAVY_FRACTION = 0.5  # body region's fraction of heavy lines that triggers the drop
 
 
 class _Anchor(BaseModel):
@@ -145,26 +156,21 @@ def _is_wholly_replaced(
     and the surviving mid-line glyphs are not real content but rather PDF
     artefacts where a strike rectangle ended short of the line width.
     """
-    anchor_page = next((p for p in pages if p.number == anchor.page), None)
-    if anchor_page is None:
-        return False
-    # Title sits to the right of the clause-number token. Anchor numbers live
-    # at x ≈ 50–65; anything past 75 is title content.
+    anchor_page = next(p for p in pages if p.number == anchor.page)
     anchor_row_printable = [
         c
         for c in anchor_page.chars
-        if abs(c.y_mid - anchor.y) <= 5 and c.x0 > 75 and c.text.strip()
+        if abs(c.y_mid - anchor.y) <= _ANCHOR_ROW_Y_TOLERANCE
+        and c.x0 > _ANCHOR_TITLE_X_MIN
+        and c.text.strip()
     ]
-    if len(anchor_row_printable) < 3:
+    if len(anchor_row_printable) < _ANCHOR_MIN_PRINTABLE:
         return False
     struck = sum(1 for c in anchor_row_printable if c.struck)
-    anchor_struck_ratio = struck / len(anchor_row_printable)
-    if anchor_struck_ratio < 0.6:
+    if struck / len(anchor_row_printable) < _ANCHOR_STRUCK_RATIO:
         return False
 
-    from collections import defaultdict
-
-    body_lines: dict[tuple[int, int], list[Char]] = defaultdict(list)
+    body_lines: dict[tuple[int, int], list[Char]] = {}
     for page in pages:
         if page.number < anchor.page or page.number > end_page:
             continue
@@ -175,7 +181,7 @@ def _is_wholly_replaced(
                 continue
             if char.page == end_page and char.y_mid >= end_y - _TITLE_LINE_TOLERANCE:
                 continue
-            body_lines[(char.page, round(char.y_mid))].append(char)
+            body_lines.setdefault((char.page, round(char.y_mid)), []).append(char)
 
     nonempty = 0
     heavy = 0
@@ -184,11 +190,11 @@ def _is_wholly_replaced(
         if not printable:
             continue
         nonempty += 1
-        if sum(1 for c in printable if c.struck) / len(printable) >= 0.75:
+        if sum(1 for c in printable if c.struck) / len(printable) >= _BODY_LINE_HEAVY_RATIO:
             heavy += 1
-    if nonempty < 2:
+    if nonempty < _BODY_MIN_NONEMPTY_LINES:
         return False  # single-line or empty region — leave to downstream logic
-    return heavy / nonempty >= 0.5
+    return heavy / nonempty >= _BODY_HEAVY_FRACTION
 
 
 def _build_clause(
@@ -289,9 +295,11 @@ def _collect_body_chars(
     """All body glyphs (struck + visible) in the clause's y-range; line+word filtered.
 
     Uses the same :func:`pdf.line_vote_filter` as the SHELLVOY parser: whole-line
-    vote (>70% struck → drop the line) plus word-level promotion (any struck
-    glyph in a word → drop the whole word). The previous bespoke inline filter
-    was correct on indemnity-style fragments but over-aggressive on lines whose
+    vote (line dropped only when left-most printable glyph is struck *and* the
+    line is >``_LINE_VOTE_STRIKE_RATIO`` struck) plus word-level promotion (any
+    struck glyph in a word → drop the whole word). The previous bespoke inline
+    filter was correct on indemnity-style fragments but over-aggressive on lines
+    whose
     *first printable char* was struck — it dropped lines like
     ``[STRUCK B.Flush] pumps and lines including decks lines, manifolds, drop
     lines and any other lines connected`` where the visible content is a real

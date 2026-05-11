@@ -113,27 +113,27 @@ _LINE_HEAVY_RATIO = 0.75  # struck ratio at which a line is "heavy enough" to an
 def line_vote_filter(chars: Iterable[Char]) -> list[Char]:
     """Drop fragments left over from partial strike rectangles.
 
-    Four cleanup passes operate on every glyph (struck + visible) for a
+    Three cleanup passes operate on every glyph (struck + visible) for a
     candidate body region:
 
     1. **Position-aware whole-line vote.** A line is "unsafe" when its
-       left-most printable glyph is struck *and* the line is >50% struck
-       overall, *unless* the first visible non-whitespace glyph is
-       punctuation (the line opens with a comma or colon — a clean
-       continuation tail, e.g. ``[STRUCK item, item], Worldscale charges /
-       dues;``).
+       left-most printable glyph is struck *and* the line is
+       >``_LINE_VOTE_STRIKE_RATIO`` struck overall, *unless* the first
+       visible non-whitespace glyph is punctuation (the line opens with a
+       comma or colon — a clean continuation tail, e.g. ``[STRUCK item,
+       item], Worldscale charges / dues;``).
     2. **Sandwich rule.** A line that doesn't trip the rule above but sits
-       tightly (≤18pt gap) between two unsafe lines on the same page is
-       *also* unsafe. Without this, a single low-strike line in the middle
-       of a wholly struck clause body ("pumps and lines including … " in a
+       tightly (≤``_LINE_SANDWICH_GAP`` between adjacent line y values)
+       between two unsafe-or-heavy lines on the same page is *also* unsafe.
+       Without this, a single low-strike line in the middle of a wholly
+       struck clause body ("pumps and lines including … " in a
        wholly-replaced VGO cleaning clause where the original line happens
        to have only a short ``B.Flush`` prefix under its strike rect) would
        leak the original struck content into the JSON.
-    3. **Word-level promotion.** On the kept lines, a word with *any* struck
-       glyph is dropped whole. Catches the indemnity → "demnity" / company →
-       "y" / Whether → "ther" pattern where a strike ends mid-word.
-    4. **Whitespace fidelity.** Whitespace glyphs are emitted only when
-       visible in the PDF — preserves spacing between kept words without
+    3. **Word-level promotion + whitespace fidelity.** On the kept lines, a
+       word with *any* struck glyph is dropped whole (catches indemnity →
+       "demnity" / company → "y" / Whether → "ther"); whitespace glyphs are
+       emitted only when visible in the PDF, preserving spacing without
        dragging in struck spaces.
     """
     by_line: dict[tuple[int, int], list[Char]] = {}
@@ -178,10 +178,9 @@ def _apply_sandwich(lines: list[tuple[tuple[int, int], list[Char]]], unsafe: lis
     Two-pass: first the immediate-neighbour sweep, then one expansion pass so
     a chain of contaminated lines propagates (B is sandwiched by A & C; C is
     then sandwiched by B & D → C unsafe via the second pass). We use the
-    pre-sandwich ``unsafe`` flag as the seed; we additionally count
-    fully-blank lines and ≥85%-struck lines as "unsafe enough" for the
-    sandwich check, so a single low-strike fragment in the middle of a wholly
-    struck clause body is correctly suppressed.
+    pre-sandwich ``unsafe`` flag as the seed plus :func:`_line_heavy_struck`
+    (≥``_LINE_HEAVY_RATIO`` struck) so a single low-strike fragment in the
+    middle of a wholly struck clause body is correctly suppressed.
     """
     heavy = [_line_heavy_struck(line_chars) for _, line_chars in lines]
     seed = [a or b for a, b in zip(unsafe, heavy, strict=True)]
@@ -210,10 +209,10 @@ def _line_heavy_struck(line_chars: list[Char]) -> bool:
     the bug that swallowed the ``Owners warrant that throughout the duration
     of this Charter the vessel will be:`` line of shellvoy-41's replacement.
 
-    The 75% threshold catches anchor rows of wholly-replaced clauses (e.g.
-    ``34.`` alone visible while the rest of *Canada Clause*'s title is struck)
-    — those rows must count as sandwich anchors so the surviving mid-clause
-    fragments below them get filtered out.
+    The threshold catches anchor rows of wholly-replaced clauses (e.g. ``34.``
+    alone visible while the rest of *Canada Clause*'s title is struck) — those
+    rows must count as sandwich anchors so the surviving mid-clause fragments
+    below them get filtered out.
     """
     printable = [c for c in line_chars if c.text.strip()]
     if not printable:

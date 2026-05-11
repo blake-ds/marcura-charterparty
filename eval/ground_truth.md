@@ -67,7 +67,7 @@ Total expected: **87 clauses** (38 SHELLVOY + 28 Additional + 21 Essar).
 
 ---
 
-## Shell Additional Clauses (pages 18–34), ordinals 1..43, expected 28 kept
+## Shell Additional Clauses (pages 18–35), ordinals 1..43, expected 28 kept
 
 | Ord | Status | Title | Notes |
 |----:|:------:|:------|:------|

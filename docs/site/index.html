@@ -416,14 +416,14 @@ footer.colophon a { color: var(--ink-soft); border-bottom: 1px dashed var(--ink-
         </tr>
         <tr>
           <td>Shell Additional Clauses (Feb 1999)</td>
-          <td>18–34</td>
+          <td>18–35</td>
           <td><code>1..43</code> (resets)</td>
           <td>single column, inline titles</td>
           <td>28</td>
         </tr>
         <tr>
           <td>Essar Rider Clauses (Dec 2006)</td>
-          <td>35–39</td>
+          <td>36–39</td>
           <td><code>1..22</code> (resets)</td>
           <td>single column, inline titles</td>
           <td>21</td>
@@ -502,7 +502,7 @@ footer.colophon a { color: var(--ink-soft); border-bottom: 1px dashed var(--ink-
       <dt>Two parsers, not one</dt><dd>Two-column SHELLVOY and inline-title rider sections share zero geometry. Forcing a unified parser would have hurt readability with no fidelity gain.</dd>
       <dt>Verifier is advisory</dt><dd>The LLM must not author text in a fidelity-critical legal pipeline. It judges what the parser produced; logs warnings; never raises.</dd>
       <dt>Pydantic everywhere</dt><dd>One model story end-to-end (parser internals → wire JSON). No <code>@dataclass</code>; no parallel serialization paths.</dd>
-      <dt>Faithful, not opinionated</dt><dd>If a glyph is visible on the page, it ends up in the JSON. Heavily-struck clauses whose entire visible body is a mid-word fragment are dropped (8 in this corpus); clauses with substantive visible content are kept even when the original heading was struck.</dd>
+      <dt>Faithful, not opinionated</dt><dd>If a glyph is visible on the page, it ends up in the JSON. Wholly-replaced clauses — title struck *and* body reduced to mid-word fragments — are dropped (21 in this corpus, enumerated in <code>eval/ground_truth.md</code>); clauses with substantive visible content are kept even when the original heading was struck.</dd>
       <dt>Markdown source, HTML showcase</dt><dd>The <code>docs/*.md</code> are the canonical source — agent-friendly, GitHub-friendly, diff-friendly. This page is a hand-crafted snapshot; no framework, single file.</dd>
     </dl>
   </section>

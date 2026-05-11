@@ -51,8 +51,8 @@ Part II is **not a single numbering range**. It is three concatenated documents:
 | Section | Pages (1-idx) | Numbering | Layout |
 |---|---|---|---|
 | SHELLVOY 5 standard clauses | 6–17 | `1..44` | two-column: title left margin, body right |
-| Shell Additional Clauses (Feb 1999) | 18–34 | `1..43` (resets) | single column: `N.` + title inline |
-| Essar Rider Clauses (Dec 2006) | 35–39 | `1..~22` (resets) | single column: `N.` + title inline |
+| Shell Additional Clauses (Feb 1999) | 18–35 | `1..43` (resets) | single column: `N.` + title inline |
+| Essar Rider Clauses (Dec 2006) | 36–39 | `1..22` (resets) | single column: `N.` + title inline |
 
 So `id="1"` appears **three times** in Part II. The output schema disambiguates with prefixed ids (`shellvoy-1`, `additional-1`, `essar-1`) while preserving the original numeral and section as separate model fields internally.
 

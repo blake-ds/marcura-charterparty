@@ -79,16 +79,22 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _build_verifier(log: logging.Logger):  # noqa: ANN202 — returns a callable, kept light
-    """Build the Azure LLM verifier; degrade gracefully if not configured."""
-    try:
-        from llm.verifier import build_verifier
-    except ImportError:
-        log.warning("--verify requested but the 'llm' package is unavailable; skipping.")
-        return None
+    """Build the Azure LLM verifier; degrade gracefully on missing .env config.
+
+    The ``llm`` package is a workspace member that ``make install`` always
+    syncs, so it is *not* optional at import time — we let an ImportError
+    propagate (it would mean the venv is broken). The only realistic runtime
+    failure here is :class:`pydantic.ValidationError` from ``LLMSettings()``
+    when ``.env`` is missing or malformed; we degrade to "no verifier" in
+    that case so ``--verify`` does not break a deterministic extraction.
+    """
+    from llm.verifier import build_verifier
+    from pydantic import ValidationError
+
     try:
         return build_verifier()
-    except Exception:
-        log.exception("Failed to build verifier; skipping verification.")
+    except ValidationError:
+        log.exception("LLM settings invalid; skipping verifier.")
         return None
 
 
